@@ -22,7 +22,7 @@ jobs:
 
       - name: Smoke test de la preview (todas las vistas)
         run: |
-          for q in "" "?view=tags" "?view=domains" "?filter=open" "?cands=1"; do
+          for q in "" "?view=tags" "?view=domains" "?filter=open"; do
             "${{ steps.chrome.outputs.chrome-path }}" --headless --disable-gpu \
               --no-sandbox --screenshot=out.png --window-size=1600,1000 \
               --virtual-time-budget=9000 "file://$PWD/newtab.html$q"

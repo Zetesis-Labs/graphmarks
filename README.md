@@ -103,14 +103,10 @@ sobre los marcadores:
 
 ## Historial como capa viva
 
-Con el permiso `history`, el grafo respira con tu uso real:
-
-- **Calor**: el tamaño de cada marcador (y un halo sutil en los muy usados)
-  refleja cuánto lo has visitado últimamente — ves enfriarse lo que ya no usas.
-- **Sugerencias** (chip «✦» en la cabecera): sitios con mucho uso reciente que
-  aún no tienen marcador, pintados como nodos ámbar punteados. Se adoptan
-  igual que los fantasmas (arrastrar sobre una carpeta) o se descartan para
-  siempre desde su menú. El análisis se cachea 30 minutos.
+Con el permiso `history`, el **calor** de cada marcador (su tamaño, y un halo
+sutil en los muy usados) refleja cuánto lo has visitado en los últimos 45
+días — ves enfriarse lo que ya no usas. El análisis es local y se cachea 30
+minutos.
 
 ## Layout manual
 
@@ -140,7 +136,7 @@ previa). La primera vez se siembran etiquetas de ejemplo (`seed-tags.js`).
 En el buscador, `#tag` filtra por etiqueta.
 
 Desde el menú contextual del fondo puedes **exportar/importar un JSON** con
-etiquetas, layout fijado y sugerencias descartadas — tu seguro de vida.
+etiquetas y layout fijado — tu seguro de vida.
 
 ## Vista previa sin instalar
 

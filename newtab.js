@@ -83,21 +83,12 @@ let winFilter = "all";      // "all" | "current" | id numérica de ventana
 let currentWinId = null;    // ventana que contiene esta new tab
 let winList = [];           // inventario de ventanas: [{id, count, title}]
 let heatByUrl = new Map();  // url de marcador -> calor 0..1 según historial
-let candidates = [];        // sitios muy visitados sin marcador (historial)
-let candIgnore = [];        // sugerencias descartadas por el usuario
-let showCands = false;      // mostrar candidatos como nodos en el grafo
 
 function strHash(s) {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
-const MOCK_CANDIDATES = [
-  { url: "https://vercel.com/dashboard", title: "Vercel Dashboard", host: "vercel.com", score: 40 },
-  { url: "https://tailscale.com/kb", title: "Tailscale Docs", host: "tailscale.com", score: 30 },
-  { url: "https://obsidian.md", title: "Obsidian", host: "obsidian.md", score: 25 },
-  { url: "https://docs.docker.com", title: "Docker Docs", host: "docs.docker.com", score: 20 },
-];
 const SAT_R = 3.6, PLUS_R = 5, MAX_SATS = 6;
 
 // pestañas simuladas para la vista previa fuera de Chrome
@@ -210,7 +201,7 @@ async function persistTags() {
 function exportData() {
   const data = {
     app: "graphmarks", version: 1, exported: new Date().toISOString(),
-    tags: tagsMap, layout: pinned, candIgnore,
+    tags: tagsMap, layout: pinned,
   };
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
   const a = document.createElement("a");
@@ -230,10 +221,6 @@ function importData() {
       const data = JSON.parse(await f.text());
       if (data.tags) { tagsMap = { ...tagsMap, ...data.tags }; await persistTags(); }
       if (data.layout) { pinned = data.layout; await saveStore("layout", pinned); }
-      if (Array.isArray(data.candIgnore)) {
-        candIgnore = [...new Set([...candIgnore, ...data.candIgnore])];
-        await saveStore("candIgnore", candIgnore);
-      }
       toast("Datos importados");
       rebuildSoon();
     } catch (e) {
@@ -243,33 +230,16 @@ function importData() {
   inp.click();
 }
 
-// ---------- historial: calor de marcadores y candidatos ----------
-const candchipEl = document.getElementById("candchip");
-
-function visibleCands() {
-  const bmUrls = new Set(allBms.map((b) => b.url));
-  return candidates.filter((c) => !candIgnore.includes(c.url) && !bmUrls.has(c.url));
-}
-function updateCandChip() {
-  const n = visibleCands().length;
-  candchipEl.hidden = !n;
-  candchipEl.textContent = `✦ ${n} sugerencia${n === 1 ? "" : "s"}`;
-  candchipEl.classList.toggle("active", showCands);
-}
-
+// ---------- historial: calor de marcadores ----------
 async function computeHistory() {
   if (!IS_EXT) {
     heatByUrl = new Map(allBms.map((b) => [b.url, (strHash(b.url) % 90) / 100]));
-    candidates = MOCK_CANDIDATES;
-    updateCandChip();
     return;
   }
-  if (!chrome.history) { candidates = []; updateCandChip(); return; }
+  if (!chrome.history) return;
   const cached = await loadStore("histCache", null);
   if (cached && Date.now() - cached.ts < 30 * 60e3) {
     heatByUrl = new Map(Object.entries(cached.heat));
-    candidates = cached.cands;
-    updateCandChip();
     return;
   }
   const items = await chrome.history.search({
@@ -280,8 +250,7 @@ async function computeHistory() {
     if (!hostIdx.has(b.mHost)) hostIdx.set(b.mHost, []);
     hostIdx.get(b.mHost).push(b);
   }
-  const NOISE = /login|log-in|signin|sign-in|logout|oauth|callback|password|verify|\/search\b|accounts\.google|\?q=/i;
-  const heatAgg = new Map(), candAgg = new Map();
+  const heatAgg = new Map();
   for (const it of items) {
     if (!/^https?:/.test(it.url || "")) continue;
     let u;
@@ -293,64 +262,18 @@ async function computeHistory() {
         path.startsWith(b.mPath + "/");
       if (hit && (!best || b.mPath.length > best.mPath.length)) best = b;
     }
-    if (best) {
-      const a = heatAgg.get(best.url) || { v: 0, last: 0 };
-      a.v += Math.min(it.visitCount || 1, 50);
-      a.last = Math.max(a.last, it.lastVisitTime || 0);
-      heatAgg.set(best.url, a);
-    } else {
-      if (NOISE.test(it.url) || path.length > 80) continue;
-      const key = `${u.protocol}//${u.host}${path === "/" ? "" : path}` || it.url;
-      const a = candAgg.get(key) || { url: key, title: "", host: u.host, v: 0, t: 0, last: 0 };
-      a.v += Math.min(it.visitCount || 1, 100);
-      a.t += it.typedCount || 0;
-      a.last = Math.max(a.last, it.lastVisitTime || 0);
-      if (!a.title && it.title) a.title = it.title;
-      candAgg.set(key, a);
-    }
+    if (!best) continue;
+    const a = heatAgg.get(best.url) || { v: 0, last: 0 };
+    a.v += Math.min(it.visitCount || 1, 50);
+    a.last = Math.max(a.last, it.lastVisitTime || 0);
+    heatAgg.set(best.url, a);
   }
   const now = Date.now();
   const rec = (last) => now - last < 7 * 864e5 ? 1 : now - last < 30 * 864e5 ? 0.7 : 0.4;
   heatByUrl = new Map([...heatAgg].map(([url, a]) =>
     [url, Math.min(1, Math.log1p(a.v) / Math.log1p(150)) * rec(a.last)]));
-  candidates = [...candAgg.values()]
-    .map((a) => ({ url: a.url, title: a.title || a.url, host: a.host,
-      score: a.v + a.t * 8, last: a.last }))
-    .filter((c) => c.score >= 12)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 12);
-  await saveStore("histCache", {
-    ts: now, heat: Object.fromEntries(heatByUrl), cands: candidates,
-  });
-  updateCandChip();
+  await saveStore("histCache", { ts: now, heat: Object.fromEntries(heatByUrl) });
 }
-
-function addCandidateNodes() {
-  if (!showCands) return;
-  for (const c of visibleCands()) {
-    addNode({
-      id: "c:" + c.url, type: "cand", title: short(c.title, 48), url: c.url,
-      host: c.host, tags: [], cluster: "cand", parentId: null, hubs: [],
-    });
-    if (IS_EXT) loadFavicon(c.url);
-  }
-}
-
-async function dismissCandidate(url) {
-  candIgnore.push(url);
-  await saveStore("candIgnore", candIgnore);
-  updateCandChip();
-  toast("Sugerencia descartada — no volverá a aparecer");
-  rebuildSoon();
-}
-
-candchipEl.addEventListener("click", async () => {
-  showCands = !showCands;
-  await saveStore("cands", showCands);
-  updateCandChip();
-  await rebuild(false);
-  if (showCands) zoomToNodes(nodes, 80);
-});
 
 // ---------- filtro por ventana ----------
 const winchipEl = document.getElementById("winchip");
@@ -722,7 +645,6 @@ function clusterColor(cid) {
 }
 function nodeColor(n) {
   if (n.type === "ghost" || n.subtype === "ghosthub") return COLORS.muted;
-  if (n.type === "cand") return COLORS.series[3];
   if (n.type === "folder" && n.cluster !== n.id && !clusterOf.get(n.cluster))
     return COLORS.muted;
   return clusterColor(n.cluster);
@@ -801,7 +723,7 @@ function draw() {
     const r = radius(n);
     ctx.globalAlpha = inFocus(n.id) ? 1 : 0.12;
     const col = nodeColor(n);
-    const fav = (n.type === "bm" || n.type === "ghost" || n.type === "cand") &&
+    const fav = (n.type === "bm" || n.type === "ghost") &&
       k >= 1.15 ? favicons.get(n.url) : null;
 
     // halo de calor: marcadores muy usados según el historial
@@ -817,8 +739,8 @@ function draw() {
 
     ctx.beginPath();
     ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-    if (n.type === "ghost" || n.type === "cand") {
-      // fantasmas (pestañas sueltas) y candidatos del historial: punteados
+    if (n.type === "ghost") {
+      // fantasmas (pestañas abiertas sin marcador): punteados
       ctx.setLineDash([3 / Math.max(k, 1), 2.5 / Math.max(k, 1)]);
       if (fav && fav.ok) {
         ctx.fillStyle = COLORS.surface;
@@ -923,7 +845,7 @@ function draw() {
       ctx.fillText(n.title, n.x, n.y + r + 4 / k);
     } else {
       const show = (k >= 1.5 && focused) ||
-        ((n.type === "ghost" || n.type === "cand") && k >= 0.8 && focused) ||
+        (n.type === "ghost" && k >= 0.8 && focused) ||
         (focus && focused) || n === hoverNode || n === searchFocusNode;
       if (!show) continue;
       ctx.globalAlpha = 1;
@@ -1120,7 +1042,7 @@ function addGhostNodes() {
 function pruneToOpen() {
   const keep = new Set(openTabs.keys());
   for (const n of nodes)
-    if (n.type === "ghost" || n.type === "cand") keep.add(n.id);
+    if (n.type === "ghost") keep.add(n.id);
   for (const id of [...keep]) {
     const n = byId.get(id);
     if (!n) { keep.delete(id); continue; }
@@ -1250,7 +1172,7 @@ const zoom = d3.zoom()
   })
   .on("zoom", (ev) => { tf = ev.transform; requestDraw(); });
 
-const ADOPTABLE = new Set(["ghost", "cand"]);
+const ADOPTABLE = new Set(["ghost"]);
 function dropExcludes(subject) {
   if (viewMode === "domains") return null;          // sin semántica de soltado
   if (viewMode === "tags") {
@@ -1265,7 +1187,7 @@ function dropExcludes(subject) {
   return ex;
 }
 
-// adopción: crear un marcador a partir de una pestaña suelta o un candidato
+// adopción: crear un marcador a partir de una pestaña suelta
 async function adopt(subj, parentId, tag) {
   const created = await api.create({
     parentId, title: subj.title, url: subj.url,
@@ -1399,11 +1321,6 @@ canvas.addEventListener("click", (ev) => {
   if (h.aux?.type === "sat") { activateTab(h.aux.tab); return; }
   if (h.aux?.type === "plus") { window.open(n.url); return; }
   if (n.type === "ghost") { activateTab(n.tab); return; }
-  if (n.type === "cand") {
-    if (ev.metaKey || ev.ctrlKey) window.open(n.url);
-    else window.location.href = n.url;
-    return;
-  }
   if (n.type === "bm") {
     if (ev.metaKey || ev.ctrlKey) { window.open(n.url); return; }
     const open = openTabs.get(n.id);
@@ -1513,14 +1430,6 @@ canvas.addEventListener("contextmenu", (ev) => {
       { label: "Guardar como marcador…", action: () => promptAdopt(n) },
       { sep: true },
       { label: "Cerrar pestaña", danger: true, action: () => closeTab(n.tab) },
-    ]);
-  } else if (n.type === "cand") {
-    showMenu(ev.clientX, ev.clientY, [
-      { label: "Abrir", action: () => { window.location.href = n.url; } },
-      { label: "Abrir en pestaña nueva", action: () => window.open(n.url) },
-      { label: "Guardar como marcador…", action: () => promptAdopt(n) },
-      { sep: true },
-      { label: "Descartar sugerencia", danger: true, action: () => dismissCandidate(n.url) },
     ]);
   } else if (n.subtype === "ghosthub") {
     showMenu(ev.clientX, ev.clientY, [
@@ -1845,7 +1754,6 @@ function exitSearchMode() {
 
 function nodeKind(n) {
   if (n.type === "ghost") return "pestaña";
-  if (n.type === "cand") return "sugerencia";
   if (n.type === "bm") return openTabs.has(n.id) ? "abierta" : "marcador";
   if (n.subtype === "tag") return "tag";
   return "carpeta";
@@ -1928,7 +1836,6 @@ function runResult(n) {
     window.location.href = n.url;
     return;
   }
-  if (n.type === "cand") { window.location.href = n.url; return; }
   if (n.subtype === "tag") {
     searchBox.value = "#" + n.tag;
     applySearch(searchBox.value);
@@ -2139,7 +2046,6 @@ async function rebuild(fit) {
   updateBadge();
   await computeHistory();
   for (const n of allBms) n.heat = heatByUrl.get(n.url) ?? 0.35;
-  addCandidateNodes();
   addGhostNodes();
   rebuildNeighbors();
   if (onlyOpen) {
@@ -2228,8 +2134,6 @@ if (IS_EXT) {
   } else {
     currentWinId = 1;
   }
-  showCands = params.get("cands") === "1" || await loadStore("cands", false);
-  candIgnore = await loadStore("candIgnore", []);
   pinned = await loadStore("layout", {});
   tagsMap = await loadTags();
   buildViews();

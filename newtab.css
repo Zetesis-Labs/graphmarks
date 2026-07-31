@@ -192,7 +192,7 @@ html, body {
 }
 .chip .n { color: var(--text-muted); }
 
-#tabcount, #candchip, #winchip {
+#tabcount, #winchip {
   flex: none;
   padding: 4px 10px;
   font: inherit;
@@ -204,15 +204,15 @@ html, body {
   white-space: nowrap;
   cursor: pointer;
 }
-#tabcount:hover, #candchip:hover, #winchip:hover { color: var(--text-primary); border-color: var(--baseline); }
-#tabcount.active, #candchip.active, #winchip.active {
+#tabcount:hover, #winchip:hover { color: var(--text-primary); border-color: var(--baseline); }
+#tabcount.active, #winchip.active {
   color: var(--page);
   background: var(--text-primary);
   border-color: var(--text-primary);
   font-weight: 600;
 }
 #tabcount.warn { color: #d03b3b; border-color: #d03b3b; background: var(--surface-1); }
-#tabcount[hidden], #candchip[hidden], #winchip[hidden] { display: none; }
+#tabcount[hidden], #winchip[hidden] { display: none; }
 
 #list-toggle {
   flex: none;
