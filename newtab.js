@@ -464,6 +464,23 @@ async function restoreSession(s) {
     : `Sesión «${short(s.name)}» restaurada`);
 }
 
+// diagnóstico: permisos declarados en el manifest cuya API no está activa
+// (típico de extensiones descomprimidas recargadas: hace falta off/on)
+async function checkPermissions() {
+  if (!IS_EXT || !chrome.permissions) return;
+  try {
+    const g = await chrome.permissions.getAll();
+    const have = new Set(g.permissions || []);
+    const missing = ["tabs", "tabGroups", "history", "storage"]
+      .filter((p) => !have.has(p));
+    if (have.has("tabGroups") && !chrome.tabGroups)
+      missing.push("tabGroups (concedido pero API inactiva)");
+    if (missing.length) {
+      toast(`⚠ Permisos sin aplicar: ${missing.join(", ")} — desactiva y reactiva GraphMarks en chrome://extensions`);
+    }
+  } catch { /* nada */ }
+}
+
 function promptSaveSession() {
   const winOpts = [{ value: "all", label: "Todas las ventanas" }];
   winList.forEach((w, i) => winOpts.push({
@@ -473,7 +490,10 @@ function promptSaveSession() {
   }));
   openDialog({
     title: "Guardar sesión de ventanas",
-    note: "Guarda qué pestañas hay en cada ventana, su orden, las fijadas, los grupos (título, color, plegado) y la posición y tamaño de cada ventana.",
+    note: "Guarda qué pestañas hay en cada ventana, su orden, las fijadas, los grupos (título, color, plegado) y la posición y tamaño de cada ventana." +
+      (IS_EXT && !chrome.tabGroups
+        ? " ⚠ Ahora mismo el permiso «tabGroups» NO está activo: los grupos se guardarían sin título ni color. Desactiva y reactiva la extensión antes de guardar."
+        : ""),
     fields: [
       { name: "name", label: "Nombre", required: true, placeholder: "p. ej. Proyecto Konect" },
       { name: "scope", label: "Qué guardar", type: "select", value: "all", options: winOpts },
@@ -2355,6 +2375,7 @@ if (IS_EXT) {
   pinned = await loadStore("layout", {});
   savedSessions = await loadStore("sessions", []);
   updateSessionsChip();
+  checkPermissions();
   tagsMap = await loadTags();
   buildViews();
   await rebuild(true);
