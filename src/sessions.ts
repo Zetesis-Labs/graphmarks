@@ -1,5 +1,5 @@
 import { IS_EXT, MOCK_TABS } from './env'
-import { loadStore, saveStore } from './lib/storage'
+import { loadChunked, saveChunked, syncUsage } from './lib/sync-store'
 import { short } from './lib/utils'
 import { S } from './state'
 import { ensureTabGroups } from './tabs'
@@ -13,6 +13,18 @@ type Scope = 'all' | number
 
 export function sessionTabCount(s: SavedSession): number {
   return s.windows.reduce((a, w) => a + w.tabs.length, 0)
+}
+
+/**
+ * Las sesiones se guardan en chrome.storage.sync (troceadas) para que viajen
+ * entre los Chrome del usuario; si no caben en la cuota, quedan solo en local
+ * y se avisa. El layout fijado NO se sincroniza a propósito: las posiciones
+ * dependen del tamaño de pantalla de cada equipo.
+ */
+export async function persistSessions(): Promise<void> {
+  const res = await saveChunked('sessions', S.savedSessions)
+  if (!res.synced && IS_EXT)
+    toast(`Sesión guardada solo en este equipo (no se pudo sincronizar: ${res.reason ?? 'cuota'})`)
 }
 
 export function updateSessionsChip(): void {
@@ -289,7 +301,7 @@ async function promptSaveSession(): Promise<void> {
           return
         }
         S.savedSessions.push(s)
-        await saveStore('sessions', S.savedSessions)
+        await persistSessions()
         updateSessionsChip()
 
         const nGroups = s.windows.reduce((a, w) => a + w.groups.length, 0)
@@ -353,6 +365,11 @@ async function showDiagnostics(): Promise<void> {
   } catch (e) {
     lines.push(`tabs.query: ${(e as Error).message}`)
   }
+  const usage = await syncUsage()
+  if (usage)
+    lines.push(
+      `Cuota de sync: ${usage.used} / ${usage.total} B usados (${Math.round((usage.used / usage.total) * 100)}%)`
+    )
   for (const s of S.savedSessions.slice(-3)) {
     const gtxt = s.windows
       .map(w => w.groups.map(g => `«${g.title || 'sin título'}»/${g.color}`).join(' + ') || 'sin grupos')
@@ -373,7 +390,7 @@ function deleteSessionMenu(anchor: DOMRect): void {
       action: () => {
         void (async () => {
           S.savedSessions = S.savedSessions.filter(x => x.id !== s.id)
-          await saveStore('sessions', S.savedSessions)
+          await persistSessions()
           updateSessionsChip()
           toast(`Sesión «${short(s.name)}» eliminada`)
         })()
@@ -409,6 +426,6 @@ export function initSessionsUi(): void {
 }
 
 export async function loadSessions(): Promise<void> {
-  S.savedSessions = await loadStore<SavedSession[]>('sessions', [])
+  S.savedSessions = await loadChunked<SavedSession[]>('sessions', [])
   updateSessionsChip()
 }

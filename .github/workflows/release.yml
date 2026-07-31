@@ -35,3 +35,42 @@ jobs:
         with:
           files: graphmarks-*.zip
           generate_release_notes: true
+
+      # Publicación en la Chrome Web Store: solo si los secretos están puestos.
+      # Requiere un alta manual previa (cuenta de desarrollador + primera subida)
+      # y credenciales OAuth con la Chrome Web Store API habilitada.
+      - name: ¿Hay credenciales de la Web Store?
+        id: cws
+        run: |
+          if [ -n "${{ secrets.CWS_EXTENSION_ID }}" ] && [ -n "${{ secrets.CWS_REFRESH_TOKEN }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Sin secretos CWS_*: se omite la publicación (el zip queda en la release)."
+          fi
+
+      - name: Subir y publicar en la Chrome Web Store
+        if: steps.cws.outputs.ready == 'true'
+        env:
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          EXT_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -sf -X POST https://oauth2.googleapis.com/token \
+            -d "client_id=$CLIENT_ID" -d "client_secret=$CLIENT_SECRET" \
+            -d "refresh_token=$REFRESH_TOKEN" -d "grant_type=refresh_token" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+          echo "Subiendo el paquete…"
+          curl -sf -X PUT \
+            -H "Authorization: Bearer $TOKEN" -H "x-goog-api-version: 2" \
+            -T graphmarks-${GITHUB_REF_NAME}.zip \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXT_ID" | tee upload.json
+          python3 -c 'import json;d=json.load(open("upload.json"));st=d.get("uploadState");print("estado:",st);raise SystemExit(0 if st in ("SUCCESS","IN_PROGRESS") else 1)'
+
+          echo "Publicando…"
+          curl -sf -X POST \
+            -H "Authorization: Bearer $TOKEN" -H "x-goog-api-version: 2" -H "Content-Length: 0" \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/$EXT_ID/publish"

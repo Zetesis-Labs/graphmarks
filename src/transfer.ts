@@ -1,6 +1,6 @@
 import { app } from './bus'
 import { saveStore } from './lib/storage'
-import { updateSessionsChip } from './sessions'
+import { persistSessions, updateSessionsChip } from './sessions'
 import { S } from './state'
 import { persistTags } from './tags'
 import type { ExportPayload } from './types'
@@ -45,7 +45,7 @@ export function importData(): void {
         if (Array.isArray(data.sessions)) {
           const known = new Set(S.savedSessions.map(s => s.id))
           S.savedSessions.push(...data.sessions.filter(s => !known.has(s.id)))
-          await saveStore('sessions', S.savedSessions)
+          await persistSessions()
           updateSessionsChip()
         }
         toast('Datos importados')

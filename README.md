@@ -181,6 +181,37 @@ y `?filter=open`.
 Tema claro y oscuro automáticos según el sistema. Sin dependencias externas en
 ejecución: D3 v7 va incluido en `vendor/`.
 
+## Sincronización entre equipos
+
+Sin servidores propios: todo va por la cuenta de Google del navegador.
+
+| Dato | Dónde vive | ¿Sincroniza? |
+|---|---|---|
+| Marcadores y carpetas | `chrome.bookmarks` | Sí, sincronización nativa de Chrome |
+| Etiquetas | `chrome.storage.sync` (buckets por hash) | Sí |
+| Sesiones de ventanas | `chrome.storage.sync` (troceadas) | Sí |
+| Layout fijado (pins) | `chrome.storage.local` | No, **a propósito** |
+| Vista, filtros, caché de historial | `chrome.storage.local` | No |
+
+`chrome.storage.sync` da 100 KB en total, 8 KB por item, 512 items y 1.800
+escrituras/hora, así que los valores grandes se trocean y las etiquetas se
+reparten en buckets para reescribir solo lo que cambia. Si algo no cabe en la
+cuota, se guarda en local y la extensión lo avisa — nunca se pierde nada. El
+uso actual de la cuota se ve en **▤ Sesiones › 🩺 Diagnóstico**.
+
+Los pins no se sincronizan porque una posición fijada depende del tamaño de
+pantalla del equipo: replicarla estropearía el layout en el otro monitor.
+Para mover datos a mano entre perfiles, el menú del fondo exporta/importa JSON.
+
+## Publicación
+
+`git tag v0.3.0 && git push --tags` construye, empaqueta y crea la release de
+GitHub con el zip. Si el repositorio tiene configurados los secretos
+`CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN` y `CWS_EXTENSION_ID`,
+el mismo workflow sube y publica la nueva versión en la Chrome Web Store; sin
+ellos se salta ese paso. El alta inicial (cuenta de desarrollador y primera
+subida) es manual y solo se hace una vez.
+
 ## Privacidad
 
 Todo es local: los marcadores se leen y escriben con `chrome.bookmarks`, el

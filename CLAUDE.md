@@ -51,6 +51,22 @@ src/
   `chrome.storage.local` → `localStorage`; sin permiso `tabGroups` se agrupa
   igual pero sin metadatos; sin `chrome.*` la preview usa datos mock.
 
+## Persistencia
+
+`chrome.storage.sync` (100 KB total, 8 KB/item, 512 items, 1.800 escrituras/h)
+sincroniza con la cuenta de Google sin servidores propios. Dos estrategias
+según el patrón de escritura:
+
+- **Etiquetas** → buckets por hash (`lib/tag-utils.ts`): se reescribe solo el
+  bucket que cambia, que es lo que ahorra cuota de escrituras cuando se
+  etiqueta a menudo.
+- **Sesiones** → troceado del JSON completo (`lib/sync-store.ts`): se escriben
+  raras veces y pueden ser grandes, así que prima la simplicidad.
+
+Ambas escriben siempre el espejo local antes de intentar sync; si la cuota
+falla, el dato sobrevive en local y se avisa por `toast`. **Los pins de layout
+no se sincronizan a propósito**: dependen del tamaño de pantalla del equipo.
+
 ## Comandos
 
 ```bash
