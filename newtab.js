@@ -381,13 +381,14 @@ async function captureSession(name, winScope) {
         }
         groupIdx = gIndex.get(t.groupId);
       }
-      // splitViewId es de solo lectura (Chrome 140+): se captura, pero aún no
-      // existe API para recrear la división (w3c/webextensions#967)
-      const sv = t.splitViewId;
+      // vistas divididas: el campo es de solo lectura y su nombre puede variar
+      // entre versiones; capturamos cualquier propiedad *split* con valor
+      let splitId = null;
+      for (const [k, v] of Object.entries(t))
+        if (/split/i.test(k) && v != null && v !== -1) splitId = v;
       tabs.push({
         url, title: t.title || url, pinned: !!t.pinned, active: !!t.active,
-        groupIdx,
-        splitId: (sv != null && sv !== -1) ? sv : null,
+        groupIdx, splitId,
       });
     }
     if (!tabs.length) continue;
@@ -444,11 +445,21 @@ async function restoreSession(s) {
           const gid = await chrome.tabs.group({ tabIds, createProperties: { windowId: win.id } });
           if (chrome.tabGroups) {
             const spec = w.groups[gi] || {};
-            await chrome.tabGroups.update(gid, {
-              title: spec.title, color: spec.color, collapsed: !!spec.collapsed,
-            });
+            try {
+              await chrome.tabGroups.update(gid, {
+                title: spec.title, color: spec.color, collapsed: !!spec.collapsed,
+              });
+            } catch (e) {
+              // reintento: el grupo puede estar aún creándose
+              await new Promise((r) => setTimeout(r, 350));
+              await chrome.tabGroups.update(gid, {
+                title: spec.title, color: spec.color, collapsed: !!spec.collapsed,
+              }).catch((e2) => toast("Metadatos de grupo no aplicados: " + (e2.message || e2)));
+            }
           }
-        } catch { /* mejor sin grupo que fallar la restauración */ }
+        } catch (e) {
+          toast("Grupo no recreado: " + (e.message || e));
+        }
       }
     }
     const ai = w.tabs.findIndex((t) => t.active);
@@ -518,6 +529,52 @@ function promptSaveSession() {
   }));
 }
 
+async function showDiagnostics() {
+  const lines = [];
+  if (!IS_EXT) {
+    toast("El diagnóstico solo tiene sentido dentro de la extensión");
+    return;
+  }
+  try {
+    const g = await chrome.permissions.getAll();
+    lines.push("Permisos concedidos: " + (g.permissions || []).join(", "));
+  } catch (e) { lines.push("permissions.getAll: " + (e.message || e)); }
+  lines.push(`APIs activas: tabGroups=${!!chrome.tabGroups} · tabs.group=${!!chrome.tabs?.group} · history=${!!chrome.history}`);
+  const tabsSplit = Object.keys(chrome.tabs || {}).filter((k) => /split/i.test(k));
+  const rootSplit = Object.keys(chrome).filter((k) => /split/i.test(k));
+  lines.push(`Claves *split*: chrome.tabs=[${tabsSplit.join(", ") || "ninguna"}] · chrome=[${rootSplit.join(", ") || "ninguna"}]`);
+  try {
+    const gs = chrome.tabGroups ? await chrome.tabGroups.query({}) : [];
+    lines.push(`Grupos abiertos ahora: ${gs.length}`);
+    for (const g of gs.slice(0, 5))
+      lines.push(`  · «${g.title || "(sin título)"}» ${g.color}${g.collapsed ? " plegado" : ""} win=${g.windowId}`);
+  } catch (e) { lines.push("tabGroups.query: " + (e.message || e)); }
+  try {
+    const tabs = await chrome.tabs.query({});
+    const t = tabs.find((x) => /^https?:/.test(x.url || "")) || tabs[0] || {};
+    lines.push("Campos de una pestaña: " + Object.keys(t).sort().join(", "));
+    const split = tabs.filter((x) =>
+      Object.entries(x).some(([k, v]) => /split/i.test(k) && v != null && v !== -1));
+    lines.push(`Pestañas con campo split activo: ${split.length}`);
+    if (split[0]) {
+      const s = Object.fromEntries(Object.entries(split[0])
+        .filter(([k]) => /split|^id$|index|windowId|groupId/i.test(k)));
+      lines.push("  ejemplo: " + JSON.stringify(s));
+    }
+  } catch (e) { lines.push("tabs.query: " + (e.message || e)); }
+  for (const s of savedSessions.slice(-3)) {
+    const gtxt = s.windows.map((w) =>
+      w.groups.map((g) => `«${g.title || "sin título"}»/${g.color}`).join(" + ") || "sin grupos").join(" | ");
+    const nSplit = s.windows.reduce((a, w) => a + w.tabs.filter((t) => t.splitId != null).length, 0);
+    lines.push(`Sesión guardada «${s.name}»: ${gtxt} · pestañas con split: ${nSplit}`);
+  }
+  openDialog({
+    title: "Diagnóstico de sesiones",
+    note: lines.join("\n"),
+    submitLabel: "Cerrar",
+  }, () => {});
+}
+
 function deleteSessionMenu(anchor) {
   showMenu(anchor.left, anchor.bottom + 6, savedSessions.map((s) => ({
     label: `✕ ${short(s.name, 30)}`,
@@ -551,6 +608,8 @@ sessionsEl.addEventListener("click", (ev) => {
       action: () => setTimeout(() => deleteSessionMenu(r), 0),
     });
   }
+  items.push({ sep: true });
+  items.push({ label: "🩺 Diagnóstico…", action: () => showDiagnostics() });
   showMenu(r.left, r.bottom + 6, items);
 });
 

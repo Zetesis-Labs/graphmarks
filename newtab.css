@@ -397,6 +397,9 @@ html, body {
   font-size: 12px;
   color: var(--text-muted);
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-height: 50vh;
+  overflow-y: auto;
 }
 #dlg .actions {
   display: flex;
