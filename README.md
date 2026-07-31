@@ -90,6 +90,11 @@ sobre los marcadores:
   El estado del filtro se recuerda entre pestañas y sesiones, funciona en
   las tres vistas, y el grafo se replantea solo al abrir o cerrar pestañas
   mientras está activo.
+- **Filtro por ventana**: con varias ventanas abiertas aparece el chip «⊞»,
+  que permite ver las pestañas de todas, solo la ventana actual o una
+  concreta (identificada por su pestaña activa). «Todas»/«esta ventana» se
+  recuerda entre sesiones. Afecta a anillos, bolitas, fantasmas y al filtro
+  «solo abiertas».
 - **Pestañas sueltas (fantasmas)**: las pestañas que no casan con ningún
   marcador aparecen como nodos grises punteados, agrupadas por dominio.
   Arrastra una sobre una carpeta (o un tag) y se convierte en marcador;

@@ -79,6 +79,9 @@ function saveLayoutSoon() {
   clearTimeout(layoutTimer);
   layoutTimer = setTimeout(() => saveStore("layout", pinned), 400);
 }
+let winFilter = "all";      // "all" | "current" | id numérica de ventana
+let currentWinId = null;    // ventana que contiene esta new tab
+let winList = [];           // inventario de ventanas: [{id, count, title}]
 let heatByUrl = new Map();  // url de marcador -> calor 0..1 según historial
 let candidates = [];        // sitios muy visitados sin marcador (historial)
 let candIgnore = [];        // sugerencias descartadas por el usuario
@@ -347,6 +350,47 @@ candchipEl.addEventListener("click", async () => {
   updateCandChip();
   await rebuild(false);
   if (showCands) zoomToNodes(nodes, 80);
+});
+
+// ---------- filtro por ventana ----------
+const winchipEl = document.getElementById("winchip");
+
+function effectiveWinFilter() {
+  if (winFilter === "all") return null;
+  if (winFilter === "current") return currentWinId;
+  return winList.some((w) => w.id === winFilter) ? winFilter : null;
+}
+function updateWinChip() {
+  winchipEl.hidden = winList.length < 2;
+  const wf = effectiveWinFilter();
+  let text = "⊞ Todas";
+  if (winFilter === "current") text = "⊞ Esta ventana";
+  else if (wf !== null) {
+    const i = winList.findIndex((w) => w.id === wf);
+    text = `⊞ Ventana ${i + 1}`;
+  }
+  winchipEl.textContent = text;
+  winchipEl.classList.toggle("active", winFilter !== "all");
+}
+async function setWinFilter(v) {
+  winFilter = v;
+  await saveStore("winFilter", v === "all" || v === "current" ? v : "all");
+  updateWinChip();
+  await refreshTabs();
+}
+winchipEl.addEventListener("click", () => {
+  const r = winchipEl.getBoundingClientRect();
+  const mark = (on) => (on ? "✓ " : "  ");
+  showMenu(r.left, r.bottom + 6, [
+    { label: mark(winFilter === "all") + "Todas las ventanas", action: () => setWinFilter("all") },
+    { label: mark(winFilter === "current") + "Esta ventana", action: () => setWinFilter("current") },
+    { sep: true },
+    ...winList.map((w, i) => ({
+      label: mark(winFilter === w.id) +
+        `Ventana ${i + 1} · ${short(w.title || "sin título", 20)} (${w.count})`,
+      action: () => setWinFilter(w.id),
+    })),
+  ]);
 });
 
 // ---------- API de marcadores (Chrome o mock en memoria) ----------
@@ -975,6 +1019,19 @@ async function computeOpenTabs(bms) {
   } else {
     tabs = MOCK_TABS;
   }
+  // inventario de ventanas (para el chip ⊞) antes de filtrar
+  const byWin = new Map();
+  for (const t of tabs) {
+    if (!/^https?:/.test(t.url || "")) continue;
+    const w = byWin.get(t.windowId) || { id: t.windowId, count: 0, title: "" };
+    w.count++;
+    if (t.active) w.title = t.title || w.title;
+    byWin.set(t.windowId, w);
+  }
+  winList = [...byWin.values()].sort((a, b) => a.id - b.id);
+  updateWinChip();
+  const wf = effectiveWinFilter();
+  if (wf !== null) tabs = tabs.filter((t) => t.windowId === wf);
   const map = new Map(), ghosts = [];
   for (const t of tabs) {
     if (!/^https?:/.test(t.url || "")) continue;
@@ -2151,6 +2208,10 @@ if (IS_EXT) {
     for (const e of ["onCreated", "onRemoved", "onUpdated", "onActivated", "onReplaced", "onAttached"])
       chrome.tabs[e]?.addListener(rescanTabsSoon);
   }
+  if (chrome.windows) {
+    chrome.windows.onCreated?.addListener(rescanTabsSoon);
+    chrome.windows.onRemoved?.addListener(rescanTabsSoon);
+  }
 }
 
 (async function boot() {
@@ -2160,6 +2221,13 @@ if (IS_EXT) {
   onlyOpen = params.get("filter") === "open" ||
     await loadStore("onlyOpen", false);
   showGhosts = await loadStore("ghosts", true);
+  winFilter = await loadStore("winFilter", "all");
+  if (IS_EXT) {
+    try { currentWinId = (await chrome.windows.getCurrent()).id; }
+    catch { currentWinId = null; }
+  } else {
+    currentWinId = 1;
+  }
   showCands = params.get("cands") === "1" || await loadStore("cands", false);
   candIgnore = await loadStore("candIgnore", []);
   pinned = await loadStore("layout", {});
