@@ -1,5 +1,6 @@
 import { app } from './bus'
 import { IS_EXT } from './env'
+import { t } from './i18n'
 import { short } from './lib/utils'
 import { S } from './state'
 import { setTags, tagsOf } from './tags'
@@ -52,7 +53,7 @@ function mockLocate(
 function mockChanged(): void {
   if (!mockNoticeShown) {
     mockNoticeShown = true
-    toast('Vista previa: los cambios no se guardan en Chrome')
+    toast(t('toastPreviewNoSave'))
   }
   app.rebuildSoon()
 }
@@ -107,7 +108,7 @@ export async function safeOp(fn: () => Promise<unknown> | unknown): Promise<void
   try {
     await fn()
   } catch (e) {
-    toast(`No se pudo completar: ${(e as Error).message ?? e}`)
+    toast(t('toastOpFailed', (e as Error).message ?? String(e)))
   }
 }
 
@@ -134,8 +135,8 @@ export async function adopt(subj: Pick<GraphNode, 'title' | 'url'>, parentId: st
   const url = subj.url ?? ''
   const created = await api.create({ parentId, title: subj.title, url })
   if (tag) await setTags(url, [...tagsOf(url), tag])
-  const where = tag ? `#${tag}` : `«${short(S.byId.get(parentId)?.title ?? 'carpeta')}»`
-  toast(`«${short(subj.title)}» guardado en ${where}`, () =>
+  const where = tag ? `#${tag}` : `«${short(S.byId.get(parentId)?.title ?? t('kindFolder'))}»`
+  toast(t('toastSavedIn', short(subj.title), where), () =>
     safeOp(async () => {
       await api.remove(created.id)
       if (tag)

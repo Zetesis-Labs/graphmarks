@@ -1,6 +1,7 @@
 import { app } from './bus'
 import { TAG_BUCKETS } from './constants'
 import { HAS_SYNC } from './env'
+import { t } from './i18n'
 import { loadStore, saveStore } from './lib/storage'
 import { normTags, tagBucket } from './lib/tag-utils'
 import { S } from './state'
@@ -79,7 +80,7 @@ export async function persistTags(): Promise<void> {
       if (Object.keys(changed).length) await chrome.storage.sync.set(changed)
       return
     } catch (e) {
-      toast(`Sync no disponible, guardando en local: ${(e as Error).message ?? e}`)
+      toast(t('toastSyncFallback', (e as Error).message ?? String(e)))
     }
   }
   await saveStore('tags', S.tagsMap)

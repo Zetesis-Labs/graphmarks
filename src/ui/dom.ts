@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 /** Referencias tipadas al DOM estático de newtab.html. */
 function el<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id)
@@ -27,7 +29,7 @@ export const sessionsEl = el<HTMLButtonElement>('sessions')
 
 export function showFatal(msg: string): void {
   emptyEl.hidden = false
-  emptyEl.innerHTML = '<h2>Error en GraphMarks</h2><p></p>'
+  emptyEl.innerHTML = `<h2>${t('fatalTitle')}</h2><p></p>`
   const p = emptyEl.querySelector('p')
   if (p) p.textContent = msg
 }

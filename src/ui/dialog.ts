@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { normTags } from '../lib/tag-utils'
 import type { DialogField, DialogSpec } from '../types'
 import { dlg } from './dom'
@@ -73,12 +74,12 @@ export function openDialog(spec: DialogSpec, onSubmit: SubmitHandler): void {
   row.className = 'actions'
   const cancel = document.createElement('button')
   cancel.type = 'button'
-  cancel.textContent = 'Cancelar'
+  cancel.textContent = t('dlgCancel')
   cancel.addEventListener('click', () => dlg.close())
   const ok = document.createElement('button')
   ok.type = 'submit'
   ok.className = spec.danger ? 'primary danger' : 'primary'
-  ok.textContent = spec.submitLabel ?? 'Guardar'
+  ok.textContent = spec.submitLabel ?? t('dlgSave')
   row.append(cancel, ok)
   form.appendChild(row)
 

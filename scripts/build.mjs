@@ -1,8 +1,25 @@
 /* Build de la extensión: dos bundles IIFE autocontenidos (los módulos ES no
-   cargan bajo file://, y la preview standalone debe seguir funcionando). */
+   cargan bajo file://, y la preview standalone debe seguir funcionando) más
+   los catálogos _locales/ que Chrome necesita para traducir el manifest. */
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { build, context } from 'esbuild'
 
 const watch = process.argv.includes('--watch')
+const LOCALES = ['es', 'en']
+
+/** `src/locales/xx.json` (plano) → `_locales/xx/messages.json` (formato Chrome). */
+async function emitLocales() {
+  for (const locale of LOCALES) {
+    const flat = JSON.parse(await readFile(new URL(`../src/locales/${locale}.json`, import.meta.url), 'utf8'))
+    const messages = Object.fromEntries(Object.entries(flat).map(([key, message]) => [key, { message }]))
+    await mkdir(new URL(`../_locales/${locale}/`, import.meta.url), { recursive: true })
+    await writeFile(
+      new URL(`../_locales/${locale}/messages.json`, import.meta.url),
+      `${JSON.stringify(messages, null, 2)}\n`
+    )
+  }
+  console.log(`_locales generados: ${LOCALES.join(', ')}`)
+}
 
 /** @type {import('esbuild').BuildOptions} */
 const common = {
@@ -17,6 +34,8 @@ const jobs = [
   { ...common, entryPoints: ['src/main.ts'], outfile: 'dist/newtab.js' },
   { ...common, entryPoints: ['src/background.ts'], outfile: 'dist/background.js' }
 ]
+
+await emitLocales()
 
 if (watch) {
   for (const job of jobs) {

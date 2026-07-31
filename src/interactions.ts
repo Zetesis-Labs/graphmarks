@@ -22,6 +22,7 @@ import { members } from './graph/build'
 import { findAt, findFolderAt, findHit } from './graph/hit'
 import { simulation } from './graph/simulation'
 import { radius } from './graph/style'
+import { t } from './i18n'
 import { saveStore } from './lib/storage'
 import { short } from './lib/utils'
 import { pinsOfView, S, saveLayoutSoon } from './state'
@@ -98,7 +99,7 @@ function handleDrop(subj: GraphNode, target: GraphNode): void {
     const oldTags = tagsOf(url)
     void safeOp(async () => {
       await setTags(url, [...oldTags, target.tag ?? ''])
-      toast(`#${target.tag} añadida a «${short(subj.title)}»`, () => void setTags(url, oldTags))
+      toast(t('toastTagAdded', target.tag ?? '', short(subj.title)), () => void setTags(url, oldTags))
     })
     return
   }
@@ -106,7 +107,7 @@ function handleDrop(subj: GraphNode, target: GraphNode): void {
   void safeOp(async () => {
     await api.move(subj.raw ?? '', { parentId: target.raw ?? '' })
     toast(
-      `«${short(subj.title)}» movido a «${short(target.title)}»`,
+      t('toastMovedTo', short(subj.title), short(target.title)),
       oldParent
         ? () => void safeOp(() => api.move(subj.raw ?? '', { parentId: S.byId.get(oldParent)?.raw ?? oldParent }))
         : null
@@ -176,11 +177,11 @@ function unpinAll(): void {
   }
   saveLayoutSoon()
   simulation?.alpha(0.5).restart()
-  toast('Todos los nodos sueltos — la física recoloca la vista')
+  toast(t('toastUnpinAll'))
 }
 
 function pinItem(n: GraphNode): MenuItem[] {
-  return pinsOfView()[n.id] ? [{ label: 'Soltar posición fijada', action: () => unpinNode(n) }] : []
+  return pinsOfView()[n.id] ? [{ label: t('menuUnpin'), action: () => unpinNode(n) }] : []
 }
 
 /* --- tooltip --- */
@@ -193,20 +194,19 @@ function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof find
   let tagLine = ''
   if (aux?.type === 'sat') {
     title = aux.tab.title
-    sub = 'clic: ir a la pestaña abierta'
+    sub = t('tooltipGoToTab')
   } else if (aux?.type === 'plus') {
-    title = 'Abrir en pestaña nueva'
+    title = t('tooltipOpenNewTab')
     sub = n.url ?? ''
   } else if (n.type === 'bm') {
     sub = n.url ?? ''
     const open = S.openTabs.get(n.id)
-    if (open?.length)
-      sub += `  ·  ${open.length} pestaña${open.length > 1 ? 's' : ''} abierta${open.length > 1 ? 's' : ''}`
+    if (open?.length) sub += `  ·  ${open.length === 1 ? t('tooltipOpenCountOne') : t('tooltipOpenCount', open.length)}`
     tagLine = n.tags?.length ? n.tags.map(t => `#${t}`).join('  ') : ''
   } else if (n.type === 'ghost') {
     sub = n.url ?? ''
   } else {
-    sub = `${n.count ?? 0} marcadores`
+    sub = t('tooltipBookmarks', n.count ?? 0)
   }
   const set = (sel: string, text: string) => {
     const el = tooltip.querySelector<HTMLElement>(sel)
@@ -232,11 +232,11 @@ function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof find
 
 function backgroundMenu(): MenuItem[] {
   return [
-    { label: 'Nueva carpeta…', action: () => promptNewFolder() },
-    { label: 'Nuevo marcador…', action: () => promptNewBookmark() },
+    { label: t('menuNewFolder'), action: () => promptNewFolder() },
+    { label: t('menuNewBookmark'), action: () => promptNewBookmark() },
     { sep: true },
     {
-      label: S.showGhosts ? 'Ocultar pestañas sueltas' : 'Mostrar pestañas sueltas',
+      label: S.showGhosts ? t('menuHideGhosts') : t('menuShowGhosts'),
       action: () => {
         void (async () => {
           S.showGhosts = !S.showGhosts
@@ -245,11 +245,11 @@ function backgroundMenu(): MenuItem[] {
         })()
       }
     },
-    { label: 'Soltar todos los nodos', action: () => unpinAll() },
-    { label: 'Encuadrar todo', action: () => zoomToNodes(S.nodes, 80) },
+    { label: t('menuUnpinAll'), action: () => unpinAll() },
+    { label: t('menuFrameEverything'), action: () => zoomToNodes(S.nodes, 80) },
     { sep: true },
-    { label: 'Exportar datos (JSON)…', action: () => exportData() },
-    { label: 'Importar datos…', action: () => importData() }
+    { label: t('menuExport'), action: () => exportData() },
+    { label: t('menuImport'), action: () => importData() }
   ]
 }
 
@@ -260,7 +260,7 @@ function nodeMenu(n: GraphNode): MenuItem[] {
       ...(open.length
         ? [
             {
-              label: `Ir a la pestaña abierta${open.length > 1 ? ` (${open.length})` : ''}`,
+              label: open.length > 1 ? t('menuGoToOpenTabs', open.length) : t('menuGoToOpenTab'),
               action: () => {
                 const first = open[0]
                 if (first) void activateTab(first)
@@ -269,42 +269,42 @@ function nodeMenu(n: GraphNode): MenuItem[] {
           ]
         : []),
       {
-        label: 'Abrir',
+        label: t('menuOpen'),
         action: () => {
           window.location.href = n.url ?? ''
         }
       },
-      { label: 'Abrir en pestaña nueva', action: () => window.open(n.url ?? '') },
+      { label: t('menuOpenNewTab'), action: () => window.open(n.url ?? '') },
       { sep: true },
-      { label: 'Etiquetas…', action: () => promptTags(n) },
-      { label: 'Renombrar…', action: () => promptRename(n) },
-      { label: 'Editar URL…', action: () => promptUrl(n) },
-      { label: 'Mover a carpeta…', action: () => promptMove(n) },
+      { label: t('menuTags'), action: () => promptTags(n) },
+      { label: t('menuRename'), action: () => promptRename(n) },
+      { label: t('menuEditUrl'), action: () => promptUrl(n) },
+      { label: t('menuMoveToFolder'), action: () => promptMove(n) },
       ...pinItem(n),
       { sep: true },
-      { label: 'Eliminar', danger: true, action: () => confirmDelete(n) }
+      { label: t('menuDelete'), danger: true, action: () => confirmDelete(n) }
     ]
   }
   if (n.type === 'ghost') {
     return [
-      { label: 'Ir a la pestaña', action: () => n.tab && void activateTab(n.tab) },
-      { label: 'Guardar como marcador…', action: () => promptAdopt(n) },
+      { label: t('menuGoToTab'), action: () => n.tab && void activateTab(n.tab) },
+      { label: t('menuSaveAsBookmark'), action: () => promptAdopt(n) },
       { sep: true },
-      { label: 'Cerrar pestaña', danger: true, action: () => n.tab && void closeTab(n.tab) }
+      { label: t('menuCloseTab'), danger: true, action: () => n.tab && void closeTab(n.tab) }
     ]
   }
   if (n.subtype === 'ghosthub' || n.subtype === 'domain') {
-    return [{ label: 'Encuadrar', action: () => zoomToNodes(members(n), 90) }]
+    return [{ label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) }]
   }
   if (n.subtype === 'tag') {
     return [
-      { label: 'Encuadrar', action: () => zoomToNodes(members(n), 90) },
+      { label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) },
       ...(n.tag
         ? [
             { sep: true },
-            { label: 'Renombrar etiqueta…', action: () => promptRenameTag(n.tag ?? '') },
+            { label: t('menuRenameTag'), action: () => promptRenameTag(n.tag ?? '') },
             {
-              label: `Eliminar etiqueta (${n.count ?? 0})`,
+              label: t('menuDeleteTag', n.count ?? 0),
               danger: true,
               action: () => confirmDeleteTag(n.tag ?? '')
             }
@@ -313,16 +313,16 @@ function nodeMenu(n: GraphNode): MenuItem[] {
     ]
   }
   return [
-    { label: 'Encuadrar clúster', action: () => zoomToNodes(members(n), 90) },
+    { label: t('menuFrameCluster'), action: () => zoomToNodes(members(n), 90) },
     { sep: true },
-    { label: 'Renombrar…', action: () => promptRename(n) },
-    { label: 'Etiquetar contenido…', action: () => promptTagFolder(n) },
-    { label: 'Nueva subcarpeta…', action: () => promptNewFolder(n) },
-    { label: 'Nuevo marcador aquí…', action: () => promptNewBookmark(n) },
-    { label: 'Mover a carpeta…', action: () => promptMove(n) },
+    { label: t('menuRename'), action: () => promptRename(n) },
+    { label: t('menuTagContents'), action: () => promptTagFolder(n) },
+    { label: t('menuNewSubfolder'), action: () => promptNewFolder(n) },
+    { label: t('menuNewBookmarkHere'), action: () => promptNewBookmark(n) },
+    { label: t('menuMoveToFolder'), action: () => promptMove(n) },
     ...pinItem(n),
     { sep: true },
-    { label: `Eliminar carpeta (${n.count ?? 0})`, danger: true, action: () => confirmDelete(n) }
+    { label: t('menuDeleteFolder', n.count ?? 0), danger: true, action: () => confirmDelete(n) }
   ]
 }
 

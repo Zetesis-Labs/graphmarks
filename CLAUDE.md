@@ -51,6 +51,19 @@ src/
   `chrome.storage.local` → `localStorage`; sin permiso `tabGroups` se agrupa
   igual pero sin metadatos; sin `chrome.*` la preview usa datos mock.
 
+## Internacionalización
+
+Los textos viven en `src/locales/{es,en}.json` (planos, con sustituciones
+`$1`). `src/i18n.ts` expone `t(key, ...subs)` y `localizeDom()`, que rellena
+los `data-i18n` / `data-i18n-attr` del HTML estático. El build genera además
+`_locales/{es,en}/messages.json` en formato Chrome para que el manifest
+(`__MSG_extName__`, `__MSG_extDescription__`) y la ficha de la Store se
+traduzcan solas. Dentro de la extensión el idioma lo resuelve
+`chrome.i18n.getUILanguage()`; en la preview, `navigator.language`.
+
+**Nunca escribas texto visible en el código**: añade la clave a los dos
+catálogos y usa `t()`.
+
 ## Persistencia
 
 `chrome.storage.sync` (100 KB total, 8 KB/item, 512 items, 1.800 escrituras/h)

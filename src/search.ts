@@ -2,6 +2,7 @@ import { select } from 'd3-selection'
 import { app } from './bus'
 import { members } from './graph/build'
 import { nodeColor } from './graph/style'
+import { t } from './i18n'
 import { zoom, zoomToNodes } from './interactions'
 import { S } from './state'
 import { activateTab, toggleOnlyOpen } from './tabs'
@@ -35,10 +36,10 @@ function exitSearchMode(): void {
 }
 
 function nodeKind(n: GraphNode): string {
-  if (n.type === 'ghost') return 'pestaña'
-  if (n.type === 'bm') return S.openTabs.has(n.id) ? 'abierta' : 'marcador'
-  if (n.subtype === 'tag') return 'tag'
-  return 'carpeta'
+  if (n.type === 'ghost') return t('kindTab')
+  if (n.type === 'bm') return S.openTabs.has(n.id) ? t('kindOpen') : t('kindBookmark')
+  if (n.subtype === 'tag') return t('kindTag')
+  return t('kindFolder')
 }
 
 /** Puntuación: prefijo > substring en título > URL > tags; la sesión abierta sube. */

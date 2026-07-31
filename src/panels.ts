@@ -1,6 +1,7 @@
 import { app } from './bus'
-import { SERIES_VARS, VIEW_LABELS } from './constants'
+import { SERIES_VARS, VIEW_KEYS } from './constants'
 import { members } from './graph/build'
+import { t } from './i18n'
 import { zoomToNodes } from './interactions'
 import { saveStore } from './lib/storage'
 import { S } from './state'
@@ -14,9 +15,9 @@ function clusterDotColor(c: Cluster): string {
 
 export function buildViews(): void {
   viewsEl.innerHTML = ''
-  for (const [mode, label] of Object.entries(VIEW_LABELS) as Array<[ViewMode, string]>) {
+  for (const [mode, key] of Object.entries(VIEW_KEYS) as Array<[ViewMode, 'viewFolders']>) {
     const b = document.createElement('button')
-    b.textContent = label
+    b.textContent = t(key)
     b.classList.toggle('active', mode === S.viewMode)
     b.addEventListener('click', () => {
       void (async () => {
@@ -36,8 +37,8 @@ export function buildLegend(): void {
   legendEl.innerHTML = ''
   const all = document.createElement('button')
   all.className = 'chip'
-  all.textContent = '⌂ Todo'
-  all.title = 'Encuadrar todo el grafo'
+  all.textContent = t('frameAll')
+  all.title = t('frameAllTitle')
   all.addEventListener('click', () => zoomToNodes(S.nodes, 80))
   legendEl.appendChild(all)
 
@@ -106,6 +107,6 @@ export function buildList(): void {
 export function initPanels(): void {
   listToggle.addEventListener('click', () => {
     listPanel.hidden = !listPanel.hidden
-    listToggle.textContent = listPanel.hidden ? '☰ Lista' : '✕ Cerrar'
+    listToggle.textContent = listPanel.hidden ? t('listOpen') : t('listClose')
   })
 }

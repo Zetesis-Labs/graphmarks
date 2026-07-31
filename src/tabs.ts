@@ -1,5 +1,6 @@
 import { app } from './bus'
 import { IS_EXT, MOCK_TABS } from './env'
+import { t } from './i18n'
 import { saveStore } from './lib/storage'
 import { bestBookmarkMatch, normPath, short } from './lib/utils'
 import { S } from './state'
@@ -34,11 +35,11 @@ export function effectiveWinFilter(): number | null {
 export function updateWinChip(): void {
   winchipEl.hidden = S.winList.length < 2
   const wf = effectiveWinFilter()
-  let text = '⊞ Todas'
-  if (S.winFilter === 'current') text = '⊞ Esta ventana'
+  let text = t('winAll')
+  if (S.winFilter === 'current') text = t('winCurrent')
   else if (wf !== null) {
     const i = S.winList.findIndex(w => w.id === wf)
-    text = `⊞ Ventana ${i + 1}`
+    text = t('winNumbered', i + 1)
   }
   winchipEl.textContent = text
   winchipEl.classList.toggle('active', S.winFilter !== 'all')
@@ -62,13 +63,13 @@ export async function computeOpenTabs(bms: GraphNode[]): Promise<OpenTabsResult>
   let tabs: RawTab[]
   if (IS_EXT) {
     if (!chrome.tabs) {
-      tabStatus('⧉ sin acceso a pestañas — falta el permiso «tabs»', true)
+      tabStatus(t('badgeNoTabsPermission'), true)
       return { map: new Map(), ghosts: [] }
     }
     tabs = await chrome.tabs.query({})
     const withUrl = tabs.filter(t => t.url).length
     if (tabs.length && !withUrl) {
-      tabStatus('⧉ Chrome oculta las URLs — acepta el permiso «tabs» en chrome://extensions', true)
+      tabStatus(t('badgeHiddenUrls'), true)
       return { map: new Map(), ghosts: [] }
     }
   } else {
@@ -137,11 +138,13 @@ export function sessionKey(): string {
 export function updateBadge(): void {
   const matched = [...S.openTabs.values()].reduce((s, l) => s + l.length, 0)
   if (tabcountEl.classList.contains('warn')) return
-  const loose = S.ghostTabs.length ? ` · ${S.ghostTabs.length} suelta${S.ghostTabs.length === 1 ? '' : 's'}` : ''
+  const loose = S.ghostTabs.length
+    ? S.ghostTabs.length === 1
+      ? t('badgeLooseOne')
+      : t('badgeLoose', S.ghostTabs.length)
+    : ''
   tabStatus(
-    S.onlyOpen
-      ? `⧉ solo abiertas (${matched}) — º para ver todo`
-      : `⧉ ${matched} abierta${matched === 1 ? '' : 's'}${loose}`
+    S.onlyOpen ? t('badgeOnlyOpen', matched) : `${matched === 1 ? t('badgeOpenOne') : t('badgeOpen', matched)}${loose}`
   )
   tabcountEl.classList.toggle('active', S.onlyOpen)
 }
@@ -181,7 +184,7 @@ export async function toggleOnlyOpen(): Promise<void> {
 
 export async function activateTab(tab: TabInfo): Promise<void> {
   if (!IS_EXT) {
-    toast(`Vista previa: iría a la pestaña «${short(tab.title)}»`)
+    toast(t('toastPreviewGoToTab', short(tab.title)))
     return
   }
   try {
@@ -190,7 +193,7 @@ export async function activateTab(tab: TabInfo): Promise<void> {
     const self = await chrome.tabs.getCurrent()
     if (self?.id !== undefined && self.id !== tab.id) void chrome.tabs.remove(self.id)
   } catch (e) {
-    toast(`No se pudo ir a la pestaña: ${(e as Error).message ?? e}`)
+    toast(t('toastTabError', (e as Error).message ?? String(e)))
     rescanTabsSoon()
   }
 }
@@ -199,14 +202,14 @@ export async function closeTab(tab: TabInfo): Promise<void> {
   if (!IS_EXT) {
     const i = MOCK_TABS.findIndex(t => t.id === tab.id)
     if (i >= 0) MOCK_TABS.splice(i, 1)
-    toast(`Vista previa: cerraría «${short(tab.title)}»`)
+    toast(t('toastPreviewCloseTab', short(tab.title)))
     rescanTabsSoon()
     return
   }
   try {
     await chrome.tabs.remove(tab.id)
   } catch (e) {
-    toast(`No se pudo cerrar: ${(e as Error).message ?? e}`)
+    toast(t('toastCloseError', (e as Error).message ?? String(e)))
   }
 }
 
@@ -218,10 +221,10 @@ export async function ensureTabGroups(): Promise<boolean> {
   if (!chrome.permissions?.request) return false
   try {
     const ok = await chrome.permissions.request({ permissions: ['tabGroups'] })
-    if (ok && !chrome.tabGroups) toast('Permiso concedido — abre una pestaña nueva para terminar de activarlo')
+    if (ok && !chrome.tabGroups) toast(t('toastPermissionGranted'))
     return !!chrome.tabGroups
   } catch (e) {
-    toast(`No se pudo pedir el permiso: ${(e as Error).message ?? e}`)
+    toast(t('toastPermissionError', (e as Error).message ?? String(e)))
     return false
   }
 }
@@ -233,15 +236,11 @@ export async function checkPermissions(): Promise<void> {
     const have = new Set(g.permissions ?? [])
     const missing = ['tabs', 'history', 'storage'].filter(p => !have.has(p))
     if (missing.length) {
-      toast(`⚠ Permisos sin aplicar: ${missing.join(', ')} — desactiva y reactiva GraphMarks en chrome://extensions`)
+      toast(t('toastMissingPermissions', missing.join(', ')))
       return
     }
     if (!chrome.tabGroups) {
-      toast(
-        'Los grupos de pestañas se guardan sin nombre ni color: falta el permiso «tabGroups»',
-        () => void ensureTabGroups(),
-        'Conceder'
-      )
+      toast(t('toastNoTabGroups'), () => void ensureTabGroups(), t('toastGrant'))
     }
   } catch {
     /* nada */
@@ -257,11 +256,11 @@ export function initTabsUi(): void {
     const r = winchipEl.getBoundingClientRect()
     const mark = (on: boolean) => (on ? '✓ ' : '  ')
     showMenu(r.left, r.bottom + 6, [
-      { label: `${mark(S.winFilter === 'all')}Todas las ventanas`, action: () => void setWinFilter('all') },
-      { label: `${mark(S.winFilter === 'current')}Esta ventana`, action: () => void setWinFilter('current') },
+      { label: `${mark(S.winFilter === 'all')}${t('winMenuAll')}`, action: () => void setWinFilter('all') },
+      { label: `${mark(S.winFilter === 'current')}${t('winMenuCurrent')}`, action: () => void setWinFilter('current') },
       { sep: true },
       ...S.winList.map((w, i) => ({
-        label: `${mark(S.winFilter === w.id)}Ventana ${i + 1} · ${short(w.title || 'sin título', 20)} (${w.count})`,
+        label: `${mark(S.winFilter === w.id)}${t('winMenuItem', i + 1, short(w.title || t('winUntitled'), 20), w.count)}`,
         action: () => void setWinFilter(w.id)
       }))
     ])

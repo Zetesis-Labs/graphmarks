@@ -1,9 +1,10 @@
+import { t } from '../i18n'
 import { toastEl } from './dom'
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 /** Aviso efímero; con `actionFn` añade un botón (deshacer, conceder…). */
-export function toast(msg: string, actionFn?: (() => void) | null, btnLabel = 'Deshacer'): void {
+export function toast(msg: string, actionFn?: (() => void) | null, btnLabel = t('toastUndo')): void {
   toastEl.innerHTML = ''
   const span = document.createElement('span')
   span.textContent = msg

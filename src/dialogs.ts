@@ -1,6 +1,7 @@
 import { adopt, api, folderOptions, safeOp } from './bookmarks'
 import { app } from './bus'
 import { members } from './graph/build'
+import { t } from './i18n'
 import { short } from './lib/utils'
 import { S } from './state'
 import { allTags, normTags, persistTags, setTags, tagsOf } from './tags'
@@ -20,11 +21,11 @@ export function folderSelectField(name: string, label: string, value: string, ex
 export function promptTags(n: GraphNode): void {
   openDialog(
     {
-      title: `Etiquetas de «${short(n.title)}»`,
+      title: t('dlgTagsOf', short(n.title)),
       fields: [
         {
           name: 'tags',
-          label: 'Etiquetas (separadas por comas)',
+          label: t('fieldTags'),
           type: 'tags',
           value: (n.tags ?? []).join(', '),
           cloud: allTags().slice(0, 24)
@@ -38,10 +39,10 @@ export function promptTags(n: GraphNode): void {
 export function promptTagFolder(folder: GraphNode): void {
   openDialog(
     {
-      title: `Etiquetar todo «${short(folder.title)}»`,
-      note: `Añade las etiquetas a los ${folder.count ?? 0} marcadores de la carpeta (sin quitar las existentes).`,
-      fields: [{ name: 'tags', label: 'Etiquetas a añadir', type: 'tags', value: '', cloud: allTags().slice(0, 24) }],
-      submitLabel: 'Etiquetar'
+      title: t('dlgTagFolder', short(folder.title)),
+      note: t('dlgTagFolderNote', folder.count ?? 0),
+      fields: [{ name: 'tags', label: t('fieldTagsToAdd'), type: 'tags', value: '', cloud: allTags().slice(0, 24) }],
+      submitLabel: t('dlgTag')
     },
     v => {
       void (async () => {
@@ -60,7 +61,7 @@ export function promptTagFolder(folder: GraphNode): void {
 
 export function promptRenameTag(tag: string): void {
   openDialog(
-    { title: `Renombrar #${tag}`, fields: [{ name: 'name', label: 'Nuevo nombre', value: tag, required: true }] },
+    { title: t('dlgRenameTag', tag), fields: [{ name: 'name', label: t('fieldNewName'), value: tag, required: true }] },
     v => {
       void (async () => {
         const to = normTags(v.name ?? '')[0]
@@ -77,9 +78,9 @@ export function promptRenameTag(tag: string): void {
 export function confirmDeleteTag(tag: string): void {
   openDialog(
     {
-      title: `¿Eliminar la etiqueta #${tag}?`,
-      note: 'Se quitará de todos los marcadores. Los marcadores no se tocan.',
-      submitLabel: 'Eliminar',
+      title: t('dlgDeleteTag', tag),
+      note: t('dlgDeleteTagNote'),
+      submitLabel: t('dlgDelete'),
       danger: true
     },
     () => {
@@ -99,12 +100,12 @@ export function confirmDeleteTag(tag: string): void {
 export function promptAdopt(n: GraphNode): void {
   openDialog(
     {
-      title: 'Guardar como marcador',
+      title: t('dlgSaveAsBookmark'),
       fields: [
-        { name: 'title', label: 'Título', value: n.title, required: true },
-        folderSelectField('dest', 'Carpeta', folderOptions()[0]?.id ?? '')
+        { name: 'title', label: t('fieldTitle'), value: n.title, required: true },
+        folderSelectField('dest', t('fieldFolder'), folderOptions()[0]?.id ?? '')
       ],
-      submitLabel: 'Guardar'
+      submitLabel: t('dlgSave')
     },
     v => void safeOp(() => adopt({ ...n, title: v.title ?? n.title }, v.dest ?? ''))
   )
@@ -113,8 +114,8 @@ export function promptAdopt(n: GraphNode): void {
 export function promptRename(n: GraphNode): void {
   openDialog(
     {
-      title: n.type === 'bm' ? 'Renombrar marcador' : 'Renombrar carpeta',
-      fields: [{ name: 'title', label: 'Nombre', value: n.title, required: true }]
+      title: n.type === 'bm' ? t('dlgRenameBookmark') : t('dlgRenameFolder'),
+      fields: [{ name: 'title', label: t('fieldName'), value: n.title, required: true }]
     },
     v => void safeOp(() => api.update(n.raw ?? '', { title: v.title }))
   )
@@ -122,7 +123,10 @@ export function promptRename(n: GraphNode): void {
 
 export function promptUrl(n: GraphNode): void {
   openDialog(
-    { title: 'Editar URL', fields: [{ name: 'url', label: 'URL', value: n.url, type: 'url', required: true }] },
+    {
+      title: t('dlgEditUrl'),
+      fields: [{ name: 'url', label: t('fieldUrl'), value: n.url, type: 'url', required: true }]
+    },
     v => void safeOp(() => api.update(n.raw ?? '', { url: v.url }))
   )
 }
@@ -132,31 +136,33 @@ export function promptMove(n: GraphNode): void {
   if (n.type === 'folder' && !n.subtype) for (const d of members(n)) exclude.add(d.id)
   openDialog(
     {
-      title: `Mover «${short(n.title)}»`,
-      fields: [folderSelectField('dest', 'Carpeta de destino', n.folderId ?? n.parentId ?? '', exclude)],
-      submitLabel: 'Mover'
+      title: t('dlgMoveItem', short(n.title)),
+      fields: [folderSelectField('dest', t('fieldDestFolder'), n.folderId ?? n.parentId ?? '', exclude)],
+      submitLabel: t('dlgMove')
     },
     v => void safeOp(() => api.move(n.raw ?? '', { parentId: v.dest ?? '' }))
   )
 }
 
 export function promptNewFolder(parent?: GraphNode): void {
-  const fields: DialogField[] = [{ name: 'title', label: 'Nombre', required: true, placeholder: 'Nueva carpeta' }]
-  if (!parent) fields.push(folderSelectField('dest', 'Dentro de', folderOptions()[0]?.id ?? ''))
+  const fields: DialogField[] = [
+    { name: 'title', label: t('fieldName'), required: true, placeholder: t('phNewFolder') }
+  ]
+  if (!parent) fields.push(folderSelectField('dest', t('fieldInsideOf'), folderOptions()[0]?.id ?? ''))
   openDialog(
-    { title: 'Nueva carpeta', fields, submitLabel: 'Crear' },
+    { title: t('dlgNewFolder'), fields, submitLabel: t('dlgCreate') },
     v => void safeOp(() => api.create({ parentId: parent ? (parent.raw ?? '') : (v.dest ?? ''), title: v.title ?? '' }))
   )
 }
 
 export function promptNewBookmark(parent?: GraphNode): void {
   const fields: DialogField[] = [
-    { name: 'title', label: 'Título', required: true },
-    { name: 'url', label: 'URL', type: 'url', required: true, placeholder: 'https://…' }
+    { name: 'title', label: t('fieldTitle'), required: true },
+    { name: 'url', label: t('fieldUrl'), type: 'url', required: true, placeholder: t('phUrl') }
   ]
-  if (!parent) fields.push(folderSelectField('dest', 'Carpeta', folderOptions()[0]?.id ?? ''))
+  if (!parent) fields.push(folderSelectField('dest', t('fieldFolder'), folderOptions()[0]?.id ?? ''))
   openDialog(
-    { title: 'Nuevo marcador', fields, submitLabel: 'Crear' },
+    { title: t('dlgNewBookmark'), fields, submitLabel: t('dlgCreate') },
     v =>
       void safeOp(() =>
         api.create({ parentId: parent ? (parent.raw ?? '') : (v.dest ?? ''), title: v.title ?? '', url: v.url })
@@ -167,9 +173,9 @@ export function promptNewBookmark(parent?: GraphNode): void {
 export function confirmDelete(n: GraphNode): void {
   openDialog(
     {
-      title: n.type === 'bm' ? `¿Eliminar «${short(n.title)}»?` : `¿Eliminar la carpeta «${short(n.title)}»?`,
-      note: n.type === 'bm' ? n.url : `Se eliminarán la carpeta y sus ${n.count ?? 0} marcadores.`,
-      submitLabel: 'Eliminar',
+      title: n.type === 'bm' ? t('dlgDeleteBookmark', short(n.title)) : t('dlgDeleteFolder', short(n.title)),
+      note: n.type === 'bm' ? n.url : t('dlgDeleteFolderNote', n.count ?? 0),
+      submitLabel: t('dlgDelete'),
       danger: true
     },
     () => void safeOp(() => (n.type === 'bm' ? api.remove(n.raw ?? '') : api.removeTree(n.raw ?? '')))

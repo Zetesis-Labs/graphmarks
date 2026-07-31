@@ -8,7 +8,7 @@ const esc = (s: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;')
 
-chrome.omnibox.setDefaultSuggestion({ description: 'GraphMarks: buscar en tus marcadores' })
+chrome.omnibox.setDefaultSuggestion({ description: chrome.i18n.getMessage('omniboxDefault') })
 
 chrome.omnibox.onInputChanged.addListener((text, suggest) => {
   if (!text.trim()) {

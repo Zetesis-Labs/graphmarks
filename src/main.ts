@@ -4,6 +4,7 @@ import { IS_EXT } from './env'
 import { addGhostNodes, buildGraph, pruneToOpen, rebuildNeighbors } from './graph/build'
 import { simulation, startSimulation } from './graph/simulation'
 import { computeHistory } from './history'
+import { localizeDom, t } from './i18n'
 import { initCanvasInteractions, resetZoom, zoomToNodes } from './interactions'
 import { buildLegend, buildList, buildViews, initPanels } from './panels'
 import { requestDraw } from './render'
@@ -28,14 +29,19 @@ import { installMenuDismiss } from './ui/menu'
 import { toast } from './ui/toast'
 
 installErrorSurface()
+localizeDom()
 readColors()
 
 function renderEmptyState(hasBookmarks: boolean): void {
   emptyEl.hidden = hasBookmarks
   if (hasBookmarks) return
-  emptyEl.innerHTML = S.onlyOpen
-    ? '<h2>Sin pestañas abiertas</h2><p>Ninguna pestaña abierta casa con tus marcadores. Pulsa <code>º</code> o el botón ⧉ para ver todo.</p>'
-    : '<h2>No hay marcadores</h2><p>Importa marcadores desde <code>chrome://bookmarks</code> y aparecerán aquí como un grafo.</p>'
+  const title = S.onlyOpen ? t('emptyNoOpenTitle') : t('emptyNoBookmarksTitle')
+  const body = S.onlyOpen ? t('emptyNoOpenBody') : t('emptyNoBookmarksBody')
+  emptyEl.innerHTML = '<h2></h2><p></p>'
+  const h = emptyEl.querySelector('h2')
+  const p = emptyEl.querySelector('p')
+  if (h) h.textContent = title
+  if (p) p.textContent = body
 }
 
 /**
@@ -179,7 +185,7 @@ async function boot(): Promise<void> {
   const urls = new Set<string>()
   collectUrls(S.lastTree[0]?.children ?? [], urls)
   if (await seedTagsIfEmpty(urls)) {
-    toast('Etiquetas iniciales generadas — clic derecho › Etiquetas para editarlas')
+    toast(t('toastTagsSeeded'))
     if (S.viewMode === 'tags') {
       await rebuild(false)
       simulation?.tick(120)

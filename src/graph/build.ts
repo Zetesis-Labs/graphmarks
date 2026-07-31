@@ -1,6 +1,7 @@
 import { app } from '../bus'
 import { LOOSE_DOM, MAX_SLOTS, UNTAGGED } from '../constants'
 import { IS_EXT } from '../env'
+import { t } from '../i18n'
 import { domainKey, normPath } from '../lib/utils'
 import { S } from '../state'
 import { tagsOf } from '../tags'
@@ -141,7 +142,7 @@ function buildGraphFolders(tree: RawBookmarkNode[]): void {
           id: it.id,
           raw: it.id,
           type: 'folder',
-          title: it.title || '(sin nombre)',
+          title: it.title || t('folderUnnamed'),
           count: bmCount(it),
           cluster: isCluster ? it.id : (clusterId ?? undefined),
           parentId: parent ? parent.id : null
@@ -160,7 +161,7 @@ function buildGraphFolders(tree: RawBookmarkNode[]): void {
         id: c.id,
         raw: c.id,
         type: 'folder',
-        title: c.title || 'Marcadores',
+        title: c.title || t('folderBookmarks'),
         count: loose.length,
         cluster: c.id,
         parentId: null
@@ -214,7 +215,7 @@ function buildGraphTags(tree: RawBookmarkNode[]): void {
       type: 'folder',
       subtype: 'tag',
       tag: hid === UNTAGGED ? null : hid.slice(2),
-      title: hid === UNTAGGED ? '· sin etiquetar' : `#${hid.slice(2)}`,
+      title: hid === UNTAGGED ? t('hubUntagged') : `#${hid.slice(2)}`,
       count,
       cluster: hid,
       parentId: null
@@ -271,7 +272,7 @@ function buildGraphDomains(tree: RawBookmarkNode[]): void {
       id: LOOSE_DOM,
       type: 'folder',
       subtype: 'domain',
-      title: '· sueltos',
+      title: t('hubLooseDomains'),
       count: loose.length,
       cluster: LOOSE_DOM,
       parentId: null

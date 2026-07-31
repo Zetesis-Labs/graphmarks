@@ -1,4 +1,5 @@
 import { app } from './bus'
+import { t } from './i18n'
 import { saveStore } from './lib/storage'
 import { persistSessions, updateSessionsChip } from './sessions'
 import { S } from './state'
@@ -48,10 +49,10 @@ export function importData(): void {
           await persistSessions()
           updateSessionsChip()
         }
-        toast('Datos importados')
+        toast(t('toastImported'))
         app.rebuildSoon()
       } catch (e) {
-        toast(`No se pudo importar: ${(e as Error).message}`)
+        toast(t('toastImportFailed', (e as Error).message))
       }
     })()
   })

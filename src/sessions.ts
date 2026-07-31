@@ -1,4 +1,5 @@
 import { IS_EXT, MOCK_TABS } from './env'
+import { t } from './i18n'
 import { loadChunked, saveChunked, syncUsage } from './lib/sync-store'
 import { short } from './lib/utils'
 import { S } from './state'
@@ -23,12 +24,11 @@ export function sessionTabCount(s: SavedSession): number {
  */
 export async function persistSessions(): Promise<void> {
   const res = await saveChunked('sessions', S.savedSessions)
-  if (!res.synced && IS_EXT)
-    toast(`Sesión guardada solo en este equipo (no se pudo sincronizar: ${res.reason ?? 'cuota'})`)
+  if (!res.synced && IS_EXT) toast(t('toastSessionLocalOnly', res.reason ?? t('toastSessionQuota')))
 }
 
 export function updateSessionsChip(): void {
-  sessionsEl.textContent = S.savedSessions.length ? `▤ Sesiones · ${S.savedSessions.length}` : '▤ Sesiones'
+  sessionsEl.textContent = S.savedSessions.length ? t('sessionsChipCount', S.savedSessions.length) : t('sessionsChip')
 }
 
 function countSplits(s: SavedSession): number {
@@ -162,12 +162,10 @@ async function restoreGroups(w: SessionWindow, win: chrome.windows.Window, creat
       } catch {
         // reintento: el grupo puede estar aún creándose
         await new Promise(r => setTimeout(r, 350))
-        await chrome.tabGroups
-          .update(gid, props)
-          .catch((e2: Error) => toast(`Metadatos de grupo no aplicados: ${e2.message}`))
+        await chrome.tabGroups.update(gid, props).catch((e2: Error) => toast(t('toastGroupMetaError', e2.message)))
       }
     } catch (e) {
-      toast(`Grupo no recreado: ${(e as Error).message}`)
+      toast(t('toastGroupError', (e as Error).message))
     }
   }
 }
@@ -210,7 +208,7 @@ async function restoreSplits(w: SessionWindow, win: chrome.windows.Window, creat
 
 export async function restoreSession(s: SavedSession): Promise<void> {
   if (!IS_EXT) {
-    toast(`Vista previa: abriría ${s.windows.length} ventana(s) con ${sessionTabCount(s)} pestañas`)
+    toast(t('toastPreviewRestore', s.windows.length, sessionTabCount(s)))
     return
   }
   if (s.windows.some(w => w.groups.length)) await ensureTabGroups()
@@ -229,7 +227,7 @@ export async function restoreSession(s: SavedSession): Promise<void> {
     try {
       win = await chrome.windows.create(props)
     } catch (e) {
-      toast(`No se pudo abrir la ventana: ${(e as Error).message}`)
+      toast(t('toastWindowError', (e as Error).message))
       continue
     }
     if (!win) continue
@@ -259,45 +257,37 @@ export async function restoreSession(s: SavedSession): Promise<void> {
     await restoreSplits(w, win, created)
   }
 
-  toast(
-    countSplits(s)
-      ? `Sesión «${short(s.name)}» restaurada — Chrome no deja recrear la vista dividida desde extensiones; el par queda seleccionado: clic derecho sobre la selección → «vista dividida»`
-      : `Sesión «${short(s.name)}» restaurada`
-  )
+  toast(countSplits(s) ? t('toastSessionRestoredSplit', short(s.name)) : t('toastSessionRestored', short(s.name)))
 }
 
 /* --- UI --- */
 
 async function promptSaveSession(): Promise<void> {
   await ensureTabGroups() // pedirlo aquí: estamos dentro de un gesto de clic
-  const winOpts = [{ value: 'all', label: 'Todas las ventanas' }]
+  const winOpts = [{ value: 'all', label: t('winMenuAll') }]
   S.winList.forEach((w, i) => {
     winOpts.push({
       value: String(w.id),
-      label: `${w.id === S.currentWinId ? 'Esta ventana' : `Ventana ${i + 1}`} · ${short(w.title || 'sin título', 18)} (${w.count})`
+      label: `${w.id === S.currentWinId ? t('winMenuCurrent') : t('winNumbered', i + 1).replace('⊞ ', '')} · ${short(w.title || t('winUntitled'), 18)} (${w.count})`
     })
   })
 
   openDialog(
     {
-      title: 'Guardar sesión de ventanas',
-      note:
-        'Guarda qué pestañas hay en cada ventana, su orden, las fijadas, los grupos (título, color, plegado) y la posición y tamaño de cada ventana.' +
-        (IS_EXT && !chrome.tabGroups
-          ? ' ⚠ Ahora mismo el permiso «tabGroups» NO está activo: los grupos se guardarían sin título ni color.'
-          : ''),
+      title: t('dlgSaveSession'),
+      note: t('dlgSaveSessionNote') + (IS_EXT && !chrome.tabGroups ? t('dlgSaveSessionNoGroups') : ''),
       fields: [
-        { name: 'name', label: 'Nombre', required: true, placeholder: 'p. ej. Proyecto Konect' },
-        { name: 'scope', label: 'Qué guardar', type: 'select', value: 'all', options: winOpts }
+        { name: 'name', label: t('fieldName'), required: true, placeholder: t('phSessionName') },
+        { name: 'scope', label: t('fieldSessionScope'), type: 'select', value: 'all', options: winOpts }
       ],
-      submitLabel: 'Guardar'
+      submitLabel: t('dlgSave')
     },
     v => {
       void (async () => {
         const scope: Scope = v.scope === 'all' ? 'all' : Number(v.scope)
         const s = await captureSession(v.name ?? '', scope)
         if (!s.windows.length) {
-          toast('No hay pestañas que guardar en ese ámbito')
+          toast(t('toastNoTabsToSave'))
           return
         }
         S.savedSessions.push(s)
@@ -306,11 +296,10 @@ async function promptSaveSession(): Promise<void> {
 
         const nGroups = s.windows.reduce((a, w) => a + w.groups.length, 0)
         const nSplits = countSplits(s)
-        let msg = `Sesión «${short(v.name ?? '')}» guardada: ${s.windows.length} ventana${s.windows.length === 1 ? '' : 's'}, ${sessionTabCount(s)} pestañas`
-        if (nGroups) msg += `, ${nGroups} grupo${nGroups === 1 ? '' : 's'}`
-        if (nSplits) msg += `, ${nSplits} dividida${nSplits === 1 ? '' : 's'}`
-        if (nGroups && IS_EXT && !chrome.tabGroups)
-          msg += ' — sin el permiso «tabGroups» los grupos se restaurarán sin título ni color'
+        let msg = t('toastSessionSaved', short(v.name ?? ''), s.windows.length, sessionTabCount(s))
+        if (nGroups) msg += t('toastSessionGroups', nGroups)
+        if (nSplits) msg += t('toastSessionSplits', nSplits)
+        if (nGroups && IS_EXT && !chrome.tabGroups) msg += t('toastSessionNoGroupMeta')
         toast(msg)
       })()
     }
@@ -319,7 +308,7 @@ async function promptSaveSession(): Promise<void> {
 
 async function showDiagnostics(): Promise<void> {
   if (!IS_EXT) {
-    toast('El diagnóstico solo tiene sentido dentro de la extensión')
+    toast(t('diagOnlyInExtension'))
     return
   }
   const lines: string[] = []
@@ -377,7 +366,7 @@ async function showDiagnostics(): Promise<void> {
     const nSplit = s.windows.reduce((a, w) => a + w.tabs.filter(t => t.splitId != null).length, 0)
     lines.push(`Sesión guardada «${s.name}»: ${gtxt} · pestañas con split: ${nSplit}`)
   }
-  openDialog({ title: 'Diagnóstico de sesiones', note: lines.join('\n'), submitLabel: 'Cerrar' }, () => {})
+  openDialog({ title: t('dlgDiagnostics'), note: lines.join('\n'), submitLabel: t('dlgClose') }, () => {})
 }
 
 function deleteSessionMenu(anchor: DOMRect): void {
@@ -392,7 +381,7 @@ function deleteSessionMenu(anchor: DOMRect): void {
           S.savedSessions = S.savedSessions.filter(x => x.id !== s.id)
           await persistSessions()
           updateSessionsChip()
-          toast(`Sesión «${short(s.name)}» eliminada`)
+          toast(t('toastSessionDeleted', short(s.name)))
         })()
       }
     }))
@@ -403,24 +392,24 @@ export function initSessionsUi(): void {
   sessionsEl.addEventListener('click', ev => {
     ev.stopPropagation() // que el clic no llegue al cierre global del menú
     const r = sessionsEl.getBoundingClientRect()
-    const items = [{ label: 'Guardar ventanas abiertas…', action: () => void promptSaveSession() }]
+    const items = [{ label: t('sessionSave'), action: () => void promptSaveSession() }]
     if (S.savedSessions.length) {
       items.push({ sep: true } as never)
       for (const s of S.savedSessions) {
         items.push({
-          label: `▶ ${short(s.name, 24)} — ${s.windows.length} vent · ${sessionTabCount(s)} pest`,
+          label: t('sessionRestoreItem', short(s.name, 24), s.windows.length, sessionTabCount(s)),
           action: () => void restoreSession(s)
         })
       }
       items.push({ sep: true } as never)
       items.push({
-        label: 'Eliminar una sesión…',
+        label: t('sessionDeleteMenu'),
         danger: true,
         action: () => setTimeout(() => deleteSessionMenu(r), 0)
       } as never)
     }
     items.push({ sep: true } as never)
-    items.push({ label: '🩺 Diagnóstico…', action: () => void showDiagnostics() })
+    items.push({ label: t('sessionDiagnostics'), action: () => void showDiagnostics() })
     showMenu(r.left, r.bottom + 6, items)
   })
 }
