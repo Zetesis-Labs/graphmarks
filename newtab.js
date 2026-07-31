@@ -307,7 +307,8 @@ async function setWinFilter(v) {
   updateWinChip();
   await refreshTabs();
 }
-winchipEl.addEventListener("click", () => {
+winchipEl.addEventListener("click", (ev) => {
+  ev.stopPropagation();   // que el clic no llegue al cierre global del menú
   const r = winchipEl.getBoundingClientRect();
   const mark = (on) => (on ? "✓ " : "  ");
   showMenu(r.left, r.bottom + 6, [
@@ -493,7 +494,8 @@ function deleteSessionMenu(anchor) {
   })));
 }
 
-sessionsEl.addEventListener("click", () => {
+sessionsEl.addEventListener("click", (ev) => {
+  ev.stopPropagation();   // que el clic no llegue al cierre global del menú
   const r = sessionsEl.getBoundingClientRect();
   const items = [
     { label: "Guardar ventanas abiertas…", action: () => promptSaveSession() },
