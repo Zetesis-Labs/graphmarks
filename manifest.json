@@ -17,5 +17,6 @@
   "omnibox": {
     "keyword": "gm"
   },
-  "permissions": ["bookmarks", "favicon", "tabs", "tabGroups", "storage", "history"]
+  "permissions": ["bookmarks", "favicon", "tabs", "storage", "history"],
+  "optional_permissions": ["tabGroups"]
 }

@@ -411,6 +411,7 @@ async function restoreSession(s) {
     toast(`Vista previa: abriría ${s.windows.length} ventana(s) con ${sessionTabCount(s)} pestañas`);
     return;
   }
+  if (s.windows.some((w) => w.groups.length)) await ensureTabGroups();
   for (const w of s.windows) {
     const props = { url: w.tabs.map((t) => t.url) };
     if (w.bounds?.state === "maximized" || w.bounds?.state === "fullscreen") {
@@ -475,24 +476,41 @@ async function restoreSession(s) {
     : `Sesión «${short(s.name)}» restaurada`);
 }
 
-// diagnóstico: permisos declarados en el manifest cuya API no está activa
-// (típico de extensiones descomprimidas recargadas: hace falta off/on)
+// tabGroups es opcional: se pide en runtime (requiere un gesto del usuario);
+// Chrome a veces no aplica permisos nuevos del manifest en descomprimidas
+async function ensureTabGroups() {
+  if (!IS_EXT || chrome.tabGroups) return !!chrome.tabGroups;
+  if (!chrome.permissions?.request) return false;
+  try {
+    const ok = await chrome.permissions.request({ permissions: ["tabGroups"] });
+    if (ok && !chrome.tabGroups)
+      toast("Permiso concedido — abre una pestaña nueva para terminar de activarlo");
+    return !!chrome.tabGroups;
+  } catch (e) {
+    toast("No se pudo pedir el permiso: " + (e.message || e));
+    return false;
+  }
+}
+
 async function checkPermissions() {
   if (!IS_EXT || !chrome.permissions) return;
   try {
     const g = await chrome.permissions.getAll();
     const have = new Set(g.permissions || []);
-    const missing = ["tabs", "tabGroups", "history", "storage"]
-      .filter((p) => !have.has(p));
-    if (have.has("tabGroups") && !chrome.tabGroups)
-      missing.push("tabGroups (concedido pero API inactiva)");
+    const missing = ["tabs", "history", "storage"].filter((p) => !have.has(p));
     if (missing.length) {
       toast(`⚠ Permisos sin aplicar: ${missing.join(", ")} — desactiva y reactiva GraphMarks en chrome://extensions`);
+      return;
+    }
+    if (!chrome.tabGroups) {
+      toast("Los grupos de pestañas se guardan sin nombre ni color: falta el permiso «tabGroups»",
+        () => ensureTabGroups(), "Conceder");
     }
   } catch { /* nada */ }
 }
 
-function promptSaveSession() {
+async function promptSaveSession() {
+  await ensureTabGroups();   // pedirlo aquí: estamos dentro de un gesto de clic
   const winOpts = [{ value: "all", label: "Todas las ventanas" }];
   winList.forEach((w, i) => winOpts.push({
     value: String(w.id),
@@ -2007,14 +2025,14 @@ function confirmDelete(n) {
 
 // ---------- toast ----------
 let toastTimer = null;
-function toast(msg, undoFn = null) {
+function toast(msg, undoFn = null, btnLabel = "Deshacer") {
   toastEl.innerHTML = "";
   const span = document.createElement("span");
   span.textContent = msg;
   toastEl.appendChild(span);
   if (undoFn) {
     const b = document.createElement("button");
-    b.textContent = "Deshacer";
+    b.textContent = btnLabel;
     b.addEventListener("click", () => { toastEl.hidden = true; undoFn(); });
     toastEl.appendChild(b);
   }
