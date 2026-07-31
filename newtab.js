@@ -350,9 +350,15 @@ function mockWindowsFromTabs() {
 }
 
 async function captureSession(name, winScope) {
-  const wins = IS_EXT
-    ? await chrome.windows.getAll({ populate: true, windowTypes: ["normal"] })
-    : mockWindowsFromTabs();
+  // las pestañas salen de tabs.query: es la vía que garantiza splitViewId
+  // (los Tab de windows.getAll(populate) pueden venir sin ese campo)
+  let wins, allTabs = null;
+  if (IS_EXT) {
+    wins = await chrome.windows.getAll({ windowTypes: ["normal"] });
+    allTabs = await chrome.tabs.query({});
+  } else {
+    wins = mockWindowsFromTabs();
+  }
   const groupsById = new Map();
   if (IS_EXT && chrome.tabGroups) {
     try {
@@ -363,8 +369,11 @@ async function captureSession(name, winScope) {
   const windows = [];
   for (const w of wins) {
     if (winScope !== "all" && w.id !== winScope) continue;
+    const wTabs = allTabs
+      ? allTabs.filter((t) => t.windowId === w.id).sort((a, b) => a.index - b.index)
+      : (w.tabs || []);
     const groups = [], gIndex = new Map(), tabs = [];
-    for (const t of (w.tabs || [])) {
+    for (const t of wTabs) {
       const url = t.url || "";
       if (!url) continue;
       if (selfUrl && url.startsWith(selfUrl)) continue;   // esta new tab
@@ -468,11 +477,24 @@ async function restoreSession(s) {
       try { await chrome.tabs.update(created[ai].id, { active: true }); }
       catch { /* seguir */ }
     }
+    // Chrome no deja recrear la división, pero sí dejar el par seleccionado:
+    // clic derecho sobre la selección → «vista dividida» y listo
+    const bySplit = new Map();
+    w.tabs.forEach((t, i) => {
+      if (t.splitId == null || !created[i]) return;
+      if (!bySplit.has(t.splitId)) bySplit.set(t.splitId, []);
+      bySplit.get(t.splitId).push(i);
+    });
+    const pair = [...bySplit.values()].find((ix) => ix.length >= 2);
+    if (pair) {
+      try { await chrome.tabs.highlight({ windowId: win.id, tabs: pair }); }
+      catch { /* seguir */ }
+    }
   }
   const splits = new Set(
     s.windows.flatMap((w) => w.tabs.map((t) => t.splitId).filter((x) => x != null)));
   toast(splits.size
-    ? `Sesión «${short(s.name)}» restaurada — Chrome aún no permite recrear las ${splits.size} vista${splits.size === 1 ? "" : "s"} dividida${splits.size === 1 ? "" : "s"}; sus pestañas quedan contiguas`
+    ? `Sesión «${short(s.name)}» restaurada — Chrome no deja recrear la vista dividida desde extensiones; el par queda seleccionado: clic derecho sobre la selección → «vista dividida»`
     : `Sesión «${short(s.name)}» restaurada`);
 }
 
