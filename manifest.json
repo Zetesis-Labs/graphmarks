@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GraphMarks — Marcadores en grafo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -12,11 +12,19 @@
     "newtab": "newtab.html"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "dist/background.js"
   },
   "omnibox": {
     "keyword": "gm"
   },
-  "permissions": ["bookmarks", "favicon", "tabs", "storage", "history"],
-  "optional_permissions": ["tabGroups"]
+  "permissions": [
+    "bookmarks",
+    "favicon",
+    "tabs",
+    "storage",
+    "history"
+  ],
+  "optional_permissions": [
+    "tabGroups"
+  ]
 }

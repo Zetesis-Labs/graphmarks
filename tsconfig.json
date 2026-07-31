@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    /* Strictness — alineado con tsconfig.base de Zetesis-Portal */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["chrome"]
+  },
+  "include": ["src/**/*.ts", "scripts/**/*.mjs"],
+  "exclude": ["dist", "node_modules"]
+}

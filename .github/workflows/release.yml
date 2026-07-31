@@ -13,11 +13,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
       - name: Empaquetar extensión
         run: |
           zip -r graphmarks-${GITHUB_REF_NAME}.zip \
-            manifest.json background.js newtab.html newtab.css newtab.js \
-            mock-data.js seed-tags.js vendor icons LICENSE
+            manifest.json newtab.html newtab.css \
+            dist/newtab.js dist/background.js \
+            mock-data.js seed-tags.js icons LICENSE
 
       - name: Crear release con el zip
         uses: softprops/action-gh-release@v2

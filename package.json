@@ -1,0 +1,43 @@
+{
+  "name": "graphmarks",
+  "version": "0.3.0",
+  "private": true,
+  "license": "MIT",
+  "author": {
+    "name": "Zetesis - Rubén Garcia",
+    "email": "ruben@zetesis.xyz",
+    "url": "https://zetesis.xyz"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src scripts",
+    "lint:fix": "biome check --write src scripts",
+    "format": "biome format --write src scripts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.10",
+    "@types/chrome": "^0.0.287",
+    "@types/d3-drag": "^3.0.7",
+    "@types/d3-force": "^3.0.10",
+    "@types/d3-selection": "^3.0.11",
+    "@types/d3-transition": "^3.0.9",
+    "@types/d3-zoom": "^3.0.8",
+    "esbuild": "^0.24.2",
+    "typescript": "5.7.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "d3-drag": "^3.0.0",
+    "d3-force": "^3.0.0",
+    "d3-selection": "^3.0.0",
+    "d3-transition": "^3.0.1",
+    "d3-zoom": "^3.0.0"
+  },
+  "packageManager": "pnpm@10.14.0"
+}

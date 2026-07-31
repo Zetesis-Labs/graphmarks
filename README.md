@@ -1,9 +1,9 @@
 # GraphMarks — Marcadores en grafo
 
-Extensión de Chrome que reemplaza la página de nueva pestaña por un grafo
-interactivo de tus marcadores, al estilo del *graph view* de Quartz
-(Obsidian). Sin build, sin dependencias en ejecución (D3 va incluido), sin
-telemetría: todos los datos viven en tu navegador.
+Extensión de Chrome (Manifest V3, TypeScript) que reemplaza la página de nueva
+pestaña por un grafo interactivo de tus marcadores, al estilo del *graph view*
+de Quartz (Obsidian). Sin framework, sin telemetría y sin peticiones de red:
+todos los datos viven en tu navegador.
 
 ![Vista de carpetas](docs/screenshot-folders.png)
 
@@ -19,11 +19,29 @@ telemetría: todos los datos viven en tu navegador.
 
 ## Instalación
 
+```bash
+pnpm install
+pnpm build      # genera dist/newtab.js y dist/background.js
+```
+
 1. Abre `chrome://extensions`
 2. Activa **Modo de desarrollador** (esquina superior derecha)
 3. **Cargar descomprimida** → selecciona esta carpeta (`graphmarks`)
 4. Abre una pestaña nueva. Chrome preguntará si quieres conservar la nueva
    página de pestaña — acepta.
+
+> Los grupos de pestañas usan el permiso opcional `tabGroups`: la extensión lo
+> pide en runtime la primera vez que guardas o restauras una sesión.
+
+## Desarrollo
+
+```bash
+pnpm dev        # esbuild en watch
+pnpm verify     # lint + typecheck + test + build (lo que corre en CI)
+```
+
+Arquitectura, convenciones y límites conocidos de las APIs de Chrome:
+[CLAUDE.md](CLAUDE.md).
 
 ## Uso
 
