@@ -381,12 +381,13 @@ async function captureSession(name, winScope) {
         }
         groupIdx = gIndex.get(t.groupId);
       }
+      // splitViewId es de solo lectura (Chrome 140+): se captura, pero aún no
+      // existe API para recrear la división (w3c/webextensions#967)
+      const sv = t.splitViewId;
       tabs.push({
         url, title: t.title || url, pinned: !!t.pinned, active: !!t.active,
         groupIdx,
-        // Chrome aún no expone API estable para pestañas divididas; si algún
-        // día publica el campo, quedará capturado para poder restaurarlo
-        splitId: t.splitViewId ?? null,
+        splitId: (sv != null && sv !== -1) ? sv : null,
       });
     }
     if (!tabs.length) continue;
@@ -429,7 +430,9 @@ async function restoreSession(s) {
         catch { /* seguir */ }
       }
     }
-    if (chrome.tabGroups && chrome.tabs.group) {
+    // agrupar aunque falte el permiso tabGroups: chrome.tabs.group no lo
+    // necesita; solo los metadatos (título/color/plegado) lo requieren
+    if (chrome.tabs.group) {
       const byGroup = new Map();
       w.tabs.forEach((t, i) => {
         if (t.groupIdx == null || !created[i]) return;
@@ -439,10 +442,12 @@ async function restoreSession(s) {
       for (const [gi, tabIds] of byGroup) {
         try {
           const gid = await chrome.tabs.group({ tabIds, createProperties: { windowId: win.id } });
-          const spec = w.groups[gi] || {};
-          await chrome.tabGroups.update(gid, {
-            title: spec.title, color: spec.color, collapsed: !!spec.collapsed,
-          });
+          if (chrome.tabGroups) {
+            const spec = w.groups[gi] || {};
+            await chrome.tabGroups.update(gid, {
+              title: spec.title, color: spec.color, collapsed: !!spec.collapsed,
+            });
+          }
         } catch { /* mejor sin grupo que fallar la restauración */ }
       }
     }
@@ -452,7 +457,11 @@ async function restoreSession(s) {
       catch { /* seguir */ }
     }
   }
-  toast(`Sesión «${short(s.name)}» restaurada`);
+  const splits = new Set(
+    s.windows.flatMap((w) => w.tabs.map((t) => t.splitId).filter((x) => x != null)));
+  toast(splits.size
+    ? `Sesión «${short(s.name)}» restaurada — Chrome aún no permite recrear las ${splits.size} vista${splits.size === 1 ? "" : "s"} dividida${splits.size === 1 ? "" : "s"}; sus pestañas quedan contiguas`
+    : `Sesión «${short(s.name)}» restaurada`);
 }
 
 function promptSaveSession() {
@@ -477,7 +486,15 @@ function promptSaveSession() {
     savedSessions.push(s);
     await saveStore("sessions", savedSessions);
     updateSessionsChip();
-    toast(`Sesión «${short(v.name)}» guardada: ${s.windows.length} ventana${s.windows.length === 1 ? "" : "s"}, ${sessionTabCount(s)} pestañas`);
+    const nGroups = s.windows.reduce((a, w) => a + w.groups.length, 0);
+    const nSplits = new Set(
+      s.windows.flatMap((w) => w.tabs.map((t) => t.splitId).filter((x) => x != null))).size;
+    let msg = `Sesión «${short(v.name)}» guardada: ${s.windows.length} ventana${s.windows.length === 1 ? "" : "s"}, ${sessionTabCount(s)} pestañas`;
+    if (nGroups) msg += `, ${nGroups} grupo${nGroups === 1 ? "" : "s"}`;
+    if (nSplits) msg += `, ${nSplits} dividida${nSplits === 1 ? "" : "s"}`;
+    if (nGroups && IS_EXT && !chrome.tabGroups)
+      msg += " — sin el permiso «tabGroups» los grupos se restaurarán sin título ni color";
+    toast(msg);
   }));
 }
 
