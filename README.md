@@ -101,6 +101,19 @@ sobre los marcadores:
   clic derecho permite guardarla, ir a ella o cerrarla. Se ocultan desde el
   menú del fondo.
 
+## Sesiones de ventanas
+
+El botón **«▤ Sesiones»** guarda conjuntos de ventanas con su distribución
+exacta: qué pestañas hay en cada ventana y en qué orden, cuáles están
+fijadas, cuál está activa, los **grupos de pestañas** (título, color y
+plegado, vía `tabGroups`) y la posición/tamaño/estado de cada ventana. Puedes
+guardar todas las ventanas o solo una, y restaurar una sesión recrea sus
+ventanas tal cual estaban. Las sesiones entran en el export/import JSON.
+
+Nota honesta: Chrome todavía no ofrece API estable a extensiones para
+*recrear* las pestañas divididas (split view); si algún día expone el campo,
+GraphMarks ya lo captura al guardar.
+
 ## Historial como capa viva
 
 Con el permiso `history`, el **calor** de cada marcador (su tamaño, y un halo

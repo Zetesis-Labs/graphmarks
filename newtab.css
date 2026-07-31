@@ -192,7 +192,7 @@ html, body {
 }
 .chip .n { color: var(--text-muted); }
 
-#tabcount, #winchip {
+#tabcount, #winchip, #sessions {
   flex: none;
   padding: 4px 10px;
   font: inherit;
@@ -204,8 +204,8 @@ html, body {
   white-space: nowrap;
   cursor: pointer;
 }
-#tabcount:hover, #winchip:hover { color: var(--text-primary); border-color: var(--baseline); }
-#tabcount.active, #winchip.active {
+#tabcount:hover, #winchip:hover, #sessions:hover { color: var(--text-primary); border-color: var(--baseline); }
+#tabcount.active, #winchip.active, #sessions.active {
   color: var(--page);
   background: var(--text-primary);
   border-color: var(--text-primary);

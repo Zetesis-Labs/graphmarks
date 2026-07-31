@@ -201,7 +201,7 @@ async function persistTags() {
 function exportData() {
   const data = {
     app: "graphmarks", version: 1, exported: new Date().toISOString(),
-    tags: tagsMap, layout: pinned,
+    tags: tagsMap, layout: pinned, sessions: savedSessions,
   };
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
   const a = document.createElement("a");
@@ -221,6 +221,12 @@ function importData() {
       const data = JSON.parse(await f.text());
       if (data.tags) { tagsMap = { ...tagsMap, ...data.tags }; await persistTags(); }
       if (data.layout) { pinned = data.layout; await saveStore("layout", pinned); }
+      if (Array.isArray(data.sessions)) {
+        const known = new Set(savedSessions.map((s) => s.id));
+        savedSessions.push(...data.sessions.filter((s) => !known.has(s.id)));
+        await saveStore("sessions", savedSessions);
+        updateSessionsChip();
+      }
       toast("Datos importados");
       rebuildSoon();
     } catch (e) {
@@ -314,6 +320,199 @@ winchipEl.addEventListener("click", () => {
       action: () => setWinFilter(w.id),
     })),
   ]);
+});
+
+// ---------- sesiones: conjuntos de ventanas guardados ----------
+const sessionsEl = document.getElementById("sessions");
+let savedSessions = [];
+
+function sessionTabCount(s) {
+  return s.windows.reduce((a, w) => a + w.tabs.length, 0);
+}
+function updateSessionsChip() {
+  sessionsEl.textContent = savedSessions.length
+    ? `▤ Sesiones · ${savedSessions.length}` : "▤ Sesiones";
+}
+
+function mockWindowsFromTabs() {
+  const byWin = new Map();
+  for (const t of MOCK_TABS) {
+    if (!byWin.has(t.windowId)) {
+      byWin.set(t.windowId, {
+        id: t.windowId, left: 80, top: 80, width: 1280, height: 800,
+        state: "normal", tabs: [],
+      });
+    }
+    byWin.get(t.windowId).tabs.push({ ...t, groupId: -1 });
+  }
+  return [...byWin.values()];
+}
+
+async function captureSession(name, winScope) {
+  const wins = IS_EXT
+    ? await chrome.windows.getAll({ populate: true, windowTypes: ["normal"] })
+    : mockWindowsFromTabs();
+  const groupsById = new Map();
+  if (IS_EXT && chrome.tabGroups) {
+    try {
+      for (const g of await chrome.tabGroups.query({})) groupsById.set(g.id, g);
+    } catch { /* sin permiso tabGroups */ }
+  }
+  const selfUrl = IS_EXT ? chrome.runtime.getURL("") : null;
+  const windows = [];
+  for (const w of wins) {
+    if (winScope !== "all" && w.id !== winScope) continue;
+    const groups = [], gIndex = new Map(), tabs = [];
+    for (const t of (w.tabs || [])) {
+      const url = t.url || "";
+      if (!url) continue;
+      if (selfUrl && url.startsWith(selfUrl)) continue;   // esta new tab
+      if (url.startsWith("chrome://newtab")) continue;
+      let groupIdx = null;
+      if (t.groupId != null && t.groupId !== -1) {
+        if (!gIndex.has(t.groupId)) {
+          const g = groupsById.get(t.groupId);
+          gIndex.set(t.groupId, groups.length);
+          groups.push({
+            title: g?.title || "", color: g?.color || "grey",
+            collapsed: !!g?.collapsed,
+          });
+        }
+        groupIdx = gIndex.get(t.groupId);
+      }
+      tabs.push({
+        url, title: t.title || url, pinned: !!t.pinned, active: !!t.active,
+        groupIdx,
+        // Chrome aún no expone API estable para pestañas divididas; si algún
+        // día publica el campo, quedará capturado para poder restaurarlo
+        splitId: t.splitViewId ?? null,
+      });
+    }
+    if (!tabs.length) continue;
+    windows.push({
+      bounds: {
+        left: w.left, top: w.top, width: w.width, height: w.height,
+        state: w.state,
+      },
+      tabs, groups,
+    });
+  }
+  return {
+    id: "s" + Date.now().toString(36), name,
+    created: new Date().toISOString(), windows,
+  };
+}
+
+async function restoreSession(s) {
+  if (!IS_EXT) {
+    toast(`Vista previa: abriría ${s.windows.length} ventana(s) con ${sessionTabCount(s)} pestañas`);
+    return;
+  }
+  for (const w of s.windows) {
+    const props = { url: w.tabs.map((t) => t.url) };
+    if (w.bounds?.state === "maximized" || w.bounds?.state === "fullscreen") {
+      props.state = w.bounds.state;
+    } else if (w.bounds && Number.isFinite(w.bounds.left)) {
+      props.left = w.bounds.left;
+      props.top = w.bounds.top;
+      props.width = w.bounds.width;
+      props.height = w.bounds.height;
+    }
+    let win;
+    try { win = await chrome.windows.create(props); }
+    catch (e) { toast("No se pudo abrir la ventana: " + (e.message || e)); continue; }
+    const created = win.tabs || [];
+    for (let i = 0; i < w.tabs.length; i++) {
+      if (w.tabs[i].pinned && created[i]) {
+        try { await chrome.tabs.update(created[i].id, { pinned: true }); }
+        catch { /* seguir */ }
+      }
+    }
+    if (chrome.tabGroups && chrome.tabs.group) {
+      const byGroup = new Map();
+      w.tabs.forEach((t, i) => {
+        if (t.groupIdx == null || !created[i]) return;
+        if (!byGroup.has(t.groupIdx)) byGroup.set(t.groupIdx, []);
+        byGroup.get(t.groupIdx).push(created[i].id);
+      });
+      for (const [gi, tabIds] of byGroup) {
+        try {
+          const gid = await chrome.tabs.group({ tabIds, createProperties: { windowId: win.id } });
+          const spec = w.groups[gi] || {};
+          await chrome.tabGroups.update(gid, {
+            title: spec.title, color: spec.color, collapsed: !!spec.collapsed,
+          });
+        } catch { /* mejor sin grupo que fallar la restauración */ }
+      }
+    }
+    const ai = w.tabs.findIndex((t) => t.active);
+    if (ai >= 0 && created[ai]) {
+      try { await chrome.tabs.update(created[ai].id, { active: true }); }
+      catch { /* seguir */ }
+    }
+  }
+  toast(`Sesión «${short(s.name)}» restaurada`);
+}
+
+function promptSaveSession() {
+  const winOpts = [{ value: "all", label: "Todas las ventanas" }];
+  winList.forEach((w, i) => winOpts.push({
+    value: String(w.id),
+    label: (w.id === currentWinId ? "Esta ventana" : `Ventana ${i + 1}`) +
+      ` · ${short(w.title || "sin título", 18)} (${w.count})`,
+  }));
+  openDialog({
+    title: "Guardar sesión de ventanas",
+    note: "Guarda qué pestañas hay en cada ventana, su orden, las fijadas, los grupos (título, color, plegado) y la posición y tamaño de cada ventana.",
+    fields: [
+      { name: "name", label: "Nombre", required: true, placeholder: "p. ej. Proyecto Konect" },
+      { name: "scope", label: "Qué guardar", type: "select", value: "all", options: winOpts },
+    ],
+    submitLabel: "Guardar",
+  }, (v) => safeOp(async () => {
+    const scope = v.scope === "all" ? "all" : Number(v.scope);
+    const s = await captureSession(v.name, scope);
+    if (!s.windows.length) { toast("No hay pestañas que guardar en ese ámbito"); return; }
+    savedSessions.push(s);
+    await saveStore("sessions", savedSessions);
+    updateSessionsChip();
+    toast(`Sesión «${short(v.name)}» guardada: ${s.windows.length} ventana${s.windows.length === 1 ? "" : "s"}, ${sessionTabCount(s)} pestañas`);
+  }));
+}
+
+function deleteSessionMenu(anchor) {
+  showMenu(anchor.left, anchor.bottom + 6, savedSessions.map((s) => ({
+    label: `✕ ${short(s.name, 30)}`,
+    danger: true,
+    action: async () => {
+      savedSessions = savedSessions.filter((x) => x.id !== s.id);
+      await saveStore("sessions", savedSessions);
+      updateSessionsChip();
+      toast(`Sesión «${short(s.name)}» eliminada`);
+    },
+  })));
+}
+
+sessionsEl.addEventListener("click", () => {
+  const r = sessionsEl.getBoundingClientRect();
+  const items = [
+    { label: "Guardar ventanas abiertas…", action: () => promptSaveSession() },
+  ];
+  if (savedSessions.length) {
+    items.push({ sep: true });
+    for (const s of savedSessions) {
+      items.push({
+        label: `▶ ${short(s.name, 24)} — ${s.windows.length} vent · ${sessionTabCount(s)} pest`,
+        action: () => restoreSession(s),
+      });
+    }
+    items.push({ sep: true });
+    items.push({
+      label: "Eliminar una sesión…", danger: true,
+      action: () => setTimeout(() => deleteSessionMenu(r), 0),
+    });
+  }
+  showMenu(r.left, r.bottom + 6, items);
 });
 
 // ---------- API de marcadores (Chrome o mock en memoria) ----------
@@ -2135,6 +2334,8 @@ if (IS_EXT) {
     currentWinId = 1;
   }
   pinned = await loadStore("layout", {});
+  savedSessions = await loadStore("sessions", []);
+  updateSessionsChip();
   tagsMap = await loadTags();
   buildViews();
   await rebuild(true);
