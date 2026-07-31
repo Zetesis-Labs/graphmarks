@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sintaxis JS y manifest
+        run: |
+          node --check newtab.js
+          node --check background.js
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
+
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+
+      - name: Smoke test de la preview (todas las vistas)
+        run: |
+          for q in "" "?view=tags" "?view=domains" "?filter=open" "?cands=1"; do
+            "${{ steps.chrome.outputs.chrome-path }}" --headless --disable-gpu \
+              --no-sandbox --screenshot=out.png --window-size=1600,1000 \
+              --virtual-time-budget=9000 "file://$PWD/newtab.html$q"
+            test -s out.png && echo "OK newtab.html$q"
+            rm -f out.png
+          done

@@ -1,0 +1,26 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Empaquetar extensión
+        run: |
+          zip -r graphmarks-${GITHUB_REF_NAME}.zip \
+            manifest.json background.js newtab.html newtab.css newtab.js \
+            mock-data.js seed-tags.js vendor icons LICENSE
+
+      - name: Crear release con el zip
+        uses: softprops/action-gh-release@v2
+        with:
+          files: graphmarks-*.zip
+          generate_release_notes: true
