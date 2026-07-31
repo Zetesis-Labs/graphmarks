@@ -10,9 +10,13 @@
   <header id="topbar">
     <div id="brand">GraphMarks</div>
     <nav id="views" aria-label="Vista del grafo"></nav>
-    <input id="search" type="search" placeholder="Buscar…  ( / , #tag )" autocomplete="off" spellcheck="false">
+    <div id="searchwrap">
+      <input id="search" type="search" placeholder="Buscar…  ( escribe · #tag · º abiertas )" autocomplete="off" spellcheck="false">
+      <ul id="results" hidden></ul>
+    </div>
     <nav id="legend" aria-label="Carpetas"></nav>
-    <button id="tabcount" hidden title="Pestañas abiertas que casan con marcadores · clic o tecla A: ver solo las abiertas"></button>
+    <button id="tabcount" hidden title="Pestañas abiertas que casan con marcadores · clic o tecla º: ver solo las abiertas"></button>
+    <button id="candchip" hidden title="Sugerencias del historial: sitios muy visitados que aún no tienen marcador"></button>
     <button id="list-toggle" title="Vista de lista">☰ Lista</button>
   </header>
 
@@ -31,7 +35,7 @@
   <dialog id="dlg"></dialog>
   <div id="toast" hidden></div>
 
-  <footer id="hint">clic abre (o va a la pestaña si ya está abierta) · ⌘clic pestaña nueva · clic derecho edita y etiqueta · A: solo abiertas · / buscar</footer>
+  <footer id="hint">clic abre (o va a la pestaña si ya está abierta) · ⌘clic pestaña nueva · clic derecho edita y etiqueta · º: solo abiertas · escribe para buscar</footer>
 
   <script src="vendor/d3.v7.min.js"></script>
   <script src="mock-data.js"></script>

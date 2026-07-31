@@ -69,6 +69,32 @@ let hoverAux = null;        // {type:"sat",tab} | {type:"plus"} bajo el cursor
 let onlyOpen = false;       // filtro: mostrar solo marcadores con pestaña abierta
 let lastOpenKey = "";       // firma del conjunto abierto, para detectar cambios
 let allBms = [];            // todos los bm del árbol (sin podar), para el matching
+let ghostTabs = [];         // pestañas abiertas que no casan con ningún marcador
+let showGhosts = true;      // pintar las pestañas sueltas como nodos fantasma
+const OTHER_CONTAINER = "2"; // «Otros marcadores»
+let pinned = {};            // layout manual por vista: { vista: { id: {x,y} } }
+let layoutTimer = null;
+function pinsOfView() { return pinned[viewMode] ??= {}; }
+function saveLayoutSoon() {
+  clearTimeout(layoutTimer);
+  layoutTimer = setTimeout(() => saveStore("layout", pinned), 400);
+}
+let heatByUrl = new Map();  // url de marcador -> calor 0..1 según historial
+let candidates = [];        // sitios muy visitados sin marcador (historial)
+let candIgnore = [];        // sugerencias descartadas por el usuario
+let showCands = false;      // mostrar candidatos como nodos en el grafo
+
+function strHash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+const MOCK_CANDIDATES = [
+  { url: "https://vercel.com/dashboard", title: "Vercel Dashboard", host: "vercel.com", score: 40 },
+  { url: "https://tailscale.com/kb", title: "Tailscale Docs", host: "tailscale.com", score: 30 },
+  { url: "https://obsidian.md", title: "Obsidian", host: "obsidian.md", score: 25 },
+  { url: "https://docs.docker.com", title: "Docker Docs", host: "docs.docker.com", score: 20 },
+];
 const SAT_R = 3.6, PLUS_R = 5, MAX_SATS = 6;
 
 // pestañas simuladas para la vista previa fuera de Chrome
@@ -81,6 +107,11 @@ const MOCK_TABS = [
   { id: 6, windowId: 1, title: "Grafana - Dashboards", url: "https://grafana.example.dev/dashboards", lastAccessed: 4 },
   { id: 7, windowId: 2, title: "YouTube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", active: true, lastAccessed: 2 },
   { id: 8, windowId: 2, title: "Hacker News", url: "https://news.ycombinator.com/item?id=1234567", lastAccessed: 1 },
+  // huérfanas (sin marcador) para demostrar los nodos fantasma
+  { id: 9, windowId: 1, title: "Deployments – Vercel", url: "https://vercel.com/acme/deployments", lastAccessed: 6 },
+  { id: 10, windowId: 1, title: "Recientes – Figma", url: "https://www.figma.com/files/recent", lastAccessed: 5 },
+  { id: 11, windowId: 1, title: "Design System – Figma", url: "https://www.figma.com/design/abc123/design-system", lastAccessed: 4 },
+  { id: 12, windowId: 2, title: "Bandeja de entrada — Proton Mail", url: "https://mail.proton.me/u/0/inbox", lastAccessed: 3 },
 ];
 
 // ---------- almacenamiento (chrome.storage.local o localStorage) ----------
@@ -114,9 +145,209 @@ function normTags(raw) {
 async function setTags(url, tags) {
   if (tags.length) tagsMap[url] = tags;
   else delete tagsMap[url];
-  await saveStore("tags", tagsMap);
+  await persistTags();
   rebuildSoon();
 }
+
+// --- persistencia de etiquetas: chrome.storage.sync troceado en buckets ---
+// (límite de 8 KB por item en sync; repartimos las URLs por hash)
+const HAS_SYNC = IS_EXT && !!chrome.storage?.sync;
+const TAG_BUCKETS = 12;
+let lastBuckets = {};
+function tagBucket(url) { return "tags_" + (strHash(url) % TAG_BUCKETS); }
+
+async function loadTags() {
+  if (HAS_SYNC) {
+    try {
+      const all = await chrome.storage.sync.get(null);
+      const merged = {};
+      lastBuckets = {};
+      for (const [k, v] of Object.entries(all)) {
+        if (!k.startsWith("tags_")) continue;
+        Object.assign(merged, v);
+        lastBuckets[k] = JSON.stringify(v);
+      }
+      if (!Object.keys(merged).length) {
+        // migración desde el almacenamiento local de versiones anteriores
+        const local = await loadStore("tags", {});
+        if (Object.keys(local).length) {
+          tagsMap = local;
+          await persistTags();
+          return local;
+        }
+      }
+      return merged;
+    } catch { /* caer a local */ }
+  }
+  return loadStore("tags", {});
+}
+
+async function persistTags() {
+  if (HAS_SYNC) {
+    try {
+      const buckets = {};
+      for (let i = 0; i < TAG_BUCKETS; i++) buckets["tags_" + i] = {};
+      for (const [url, ts] of Object.entries(tagsMap))
+        buckets[tagBucket(url)][url] = ts;
+      const changed = {};
+      for (const [k, v] of Object.entries(buckets)) {
+        const s = JSON.stringify(v);
+        if (lastBuckets[k] !== s) { changed[k] = v; lastBuckets[k] = s; }
+      }
+      if (Object.keys(changed).length) await chrome.storage.sync.set(changed);
+      return;
+    } catch (e) {
+      toast("Sync no disponible, guardando en local: " + (e.message || e));
+    }
+  }
+  await saveStore("tags", tagsMap);
+}
+
+// --- exportar / importar (tags, layout, descartes) ---
+function exportData() {
+  const data = {
+    app: "graphmarks", version: 1, exported: new Date().toISOString(),
+    tags: tagsMap, layout: pinned, candIgnore,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "graphmarks-" + new Date().toISOString().slice(0, 10) + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importData() {
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = "application/json";
+  inp.addEventListener("change", async () => {
+    const f = inp.files[0];
+    if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (data.tags) { tagsMap = { ...tagsMap, ...data.tags }; await persistTags(); }
+      if (data.layout) { pinned = data.layout; await saveStore("layout", pinned); }
+      if (Array.isArray(data.candIgnore)) {
+        candIgnore = [...new Set([...candIgnore, ...data.candIgnore])];
+        await saveStore("candIgnore", candIgnore);
+      }
+      toast("Datos importados");
+      rebuildSoon();
+    } catch (e) {
+      toast("No se pudo importar: " + (e.message || e));
+    }
+  });
+  inp.click();
+}
+
+// ---------- historial: calor de marcadores y candidatos ----------
+const candchipEl = document.getElementById("candchip");
+
+function visibleCands() {
+  const bmUrls = new Set(allBms.map((b) => b.url));
+  return candidates.filter((c) => !candIgnore.includes(c.url) && !bmUrls.has(c.url));
+}
+function updateCandChip() {
+  const n = visibleCands().length;
+  candchipEl.hidden = !n;
+  candchipEl.textContent = `✦ ${n} sugerencia${n === 1 ? "" : "s"}`;
+  candchipEl.classList.toggle("active", showCands);
+}
+
+async function computeHistory() {
+  if (!IS_EXT) {
+    heatByUrl = new Map(allBms.map((b) => [b.url, (strHash(b.url) % 90) / 100]));
+    candidates = MOCK_CANDIDATES;
+    updateCandChip();
+    return;
+  }
+  if (!chrome.history) { candidates = []; updateCandChip(); return; }
+  const cached = await loadStore("histCache", null);
+  if (cached && Date.now() - cached.ts < 30 * 60e3) {
+    heatByUrl = new Map(Object.entries(cached.heat));
+    candidates = cached.cands;
+    updateCandChip();
+    return;
+  }
+  const items = await chrome.history.search({
+    text: "", startTime: Date.now() - 45 * 864e5, maxResults: 5000,
+  });
+  const hostIdx = new Map();
+  for (const b of allBms) {
+    if (!hostIdx.has(b.mHost)) hostIdx.set(b.mHost, []);
+    hostIdx.get(b.mHost).push(b);
+  }
+  const NOISE = /login|log-in|signin|sign-in|logout|oauth|callback|password|verify|\/search\b|accounts\.google|\?q=/i;
+  const heatAgg = new Map(), candAgg = new Map();
+  for (const it of items) {
+    if (!/^https?:/.test(it.url || "")) continue;
+    let u;
+    try { u = new URL(it.url); } catch { continue; }
+    const host = u.host.toLowerCase(), path = normPath(u.pathname);
+    let best = null;
+    for (const b of hostIdx.get(host) || []) {
+      const hit = b.mPath === "/" || path === b.mPath ||
+        path.startsWith(b.mPath + "/");
+      if (hit && (!best || b.mPath.length > best.mPath.length)) best = b;
+    }
+    if (best) {
+      const a = heatAgg.get(best.url) || { v: 0, last: 0 };
+      a.v += Math.min(it.visitCount || 1, 50);
+      a.last = Math.max(a.last, it.lastVisitTime || 0);
+      heatAgg.set(best.url, a);
+    } else {
+      if (NOISE.test(it.url) || path.length > 80) continue;
+      const key = `${u.protocol}//${u.host}${path === "/" ? "" : path}` || it.url;
+      const a = candAgg.get(key) || { url: key, title: "", host: u.host, v: 0, t: 0, last: 0 };
+      a.v += Math.min(it.visitCount || 1, 100);
+      a.t += it.typedCount || 0;
+      a.last = Math.max(a.last, it.lastVisitTime || 0);
+      if (!a.title && it.title) a.title = it.title;
+      candAgg.set(key, a);
+    }
+  }
+  const now = Date.now();
+  const rec = (last) => now - last < 7 * 864e5 ? 1 : now - last < 30 * 864e5 ? 0.7 : 0.4;
+  heatByUrl = new Map([...heatAgg].map(([url, a]) =>
+    [url, Math.min(1, Math.log1p(a.v) / Math.log1p(150)) * rec(a.last)]));
+  candidates = [...candAgg.values()]
+    .map((a) => ({ url: a.url, title: a.title || a.url, host: a.host,
+      score: a.v + a.t * 8, last: a.last }))
+    .filter((c) => c.score >= 12)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12);
+  await saveStore("histCache", {
+    ts: now, heat: Object.fromEntries(heatByUrl), cands: candidates,
+  });
+  updateCandChip();
+}
+
+function addCandidateNodes() {
+  if (!showCands) return;
+  for (const c of visibleCands()) {
+    addNode({
+      id: "c:" + c.url, type: "cand", title: short(c.title, 48), url: c.url,
+      host: c.host, tags: [], cluster: "cand", parentId: null, hubs: [],
+    });
+    if (IS_EXT) loadFavicon(c.url);
+  }
+}
+
+async function dismissCandidate(url) {
+  candIgnore.push(url);
+  await saveStore("candIgnore", candIgnore);
+  updateCandChip();
+  toast("Sugerencia descartada — no volverá a aparecer");
+  rebuildSoon();
+}
+
+candchipEl.addEventListener("click", async () => {
+  showCands = !showCands;
+  await saveStore("cands", showCands);
+  updateCandChip();
+  await rebuild(false);
+  if (showCands) zoomToNodes(nodes, 80);
+});
 
 // ---------- API de marcadores (Chrome o mock en memoria) ----------
 let mockNoticeShown = false;
@@ -234,6 +465,11 @@ function finishGraph(withHostLinks) {
           addLink(group[i].id, group[j].id, "host");
     }
   }
+  rebuildNeighbors();
+  if (IS_EXT) for (const n of nodes) if (n.type === "bm") loadFavicon(n.url);
+}
+
+function rebuildNeighbors() {
   neighbors = new Map(nodes.map((n) => [n.id, new Set()]));
   for (const l of links) {
     const s = typeof l.source === "object" ? l.source.id : l.source;
@@ -241,7 +477,6 @@ function finishGraph(withHostLinks) {
     neighbors.get(s)?.add(t);
     neighbors.get(t)?.add(s);
   }
-  if (IS_EXT) for (const n of nodes) if (n.type === "bm") loadFavicon(n.url);
 }
 
 function assignSlots(list, noSlotIds = new Set()) {
@@ -442,6 +677,8 @@ function clusterColor(cid) {
   return COLORS.series[c.slot];
 }
 function nodeColor(n) {
+  if (n.type === "ghost" || n.subtype === "ghosthub") return COLORS.muted;
+  if (n.type === "cand") return COLORS.series[3];
   if (n.type === "folder" && n.cluster !== n.id && !clusterOf.get(n.cluster))
     return COLORS.muted;
   return clusterColor(n.cluster);
@@ -449,6 +686,7 @@ function nodeColor(n) {
 function radius(n) {
   if (n.type === "folder")
     return Math.min(9 + Math.sqrt(n.count) * 1.7, 26);
+  if (n.type === "bm") return 3.9 + (n.heat ?? 0.35) * 2.8;
   return 5;
 }
 
@@ -519,17 +757,51 @@ function draw() {
     const r = radius(n);
     ctx.globalAlpha = inFocus(n.id) ? 1 : 0.12;
     const col = nodeColor(n);
-    const fav = n.type === "bm" && k >= 1.15 ? favicons.get(n.url) : null;
+    const fav = (n.type === "bm" || n.type === "ghost" || n.type === "cand") &&
+      k >= 1.15 ? favicons.get(n.url) : null;
+
+    // halo de calor: marcadores muy usados según el historial
+    if (n.type === "bm" && (n.heat ?? 0) > 0.65) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r * 2.1, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      const a = ctx.globalAlpha;
+      ctx.globalAlpha = a * 0.1;
+      ctx.fill();
+      ctx.globalAlpha = a;
+    }
 
     ctx.beginPath();
     ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-    if (n.type === "folder" && n.subtype) {
-      // hubs de tag/dominio: huecos, para distinguirlos de carpetas reales
+    if (n.type === "ghost" || n.type === "cand") {
+      // fantasmas (pestañas sueltas) y candidatos del historial: punteados
+      ctx.setLineDash([3 / Math.max(k, 1), 2.5 / Math.max(k, 1)]);
+      if (fav && fav.ok) {
+        ctx.fillStyle = COLORS.surface;
+        ctx.fill();
+        ctx.save();
+        ctx.clip();
+        const s = (r - 1) * 2;
+        ctx.drawImage(fav.img, n.x - s / 2, n.y - s / 2, s, s);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = COLORS.page;
+        ctx.fill();
+      }
+      ctx.lineWidth = 1.5 / Math.max(k, 1);
+      ctx.strokeStyle = col;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (n.type === "folder" && n.subtype) {
+      // hubs de tag/dominio/fantasma: huecos, para distinguirlos de carpetas
+      if (n.subtype === "ghosthub")
+        ctx.setLineDash([4 / Math.max(k, 1), 3 / Math.max(k, 1)]);
       ctx.fillStyle = COLORS.page;
       ctx.fill();
       ctx.lineWidth = 2.5 / Math.max(k, 1);
       ctx.strokeStyle = col;
       ctx.stroke();
+      ctx.setLineDash([]);
     } else if (fav && fav.ok) {
       ctx.fillStyle = COLORS.surface;
       ctx.fill();
@@ -556,6 +828,13 @@ function draw() {
       ctx.strokeStyle = col;
       ctx.stroke();
     }
+    // punto de nodo fijado (layout manual)
+    if (pinsOfView()[n.id]) {
+      ctx.beginPath();
+      ctx.arc(n.x + r * 0.85, n.y - r * 0.85, 1.7 / Math.max(k, 1), 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.ink;
+      ctx.fill();
+    }
   }
 
   if (dropTarget) {
@@ -567,6 +846,17 @@ function draw() {
     ctx.arc(dropTarget.x, dropTarget.y, radius(dropTarget) + 7 / k, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  // resultado seleccionado en el buscador: anillo de resalte
+  if (searchFocusNode && byId.has(searchFocusNode.id)) {
+    const n = searchFocusNode;
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2.5 / k;
+    ctx.strokeStyle = COLORS.ink;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, radius(n) + 8 / k, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   ctx.textAlign = "center";
@@ -589,7 +879,8 @@ function draw() {
       ctx.fillText(n.title, n.x, n.y + r + 4 / k);
     } else {
       const show = (k >= 1.5 && focused) ||
-        (focus && focused) || n === hoverNode;
+        ((n.type === "ghost" || n.type === "cand") && k >= 0.8 && focused) ||
+        (focus && focused) || n === hoverNode || n === searchFocusNode;
       if (!show) continue;
       ctx.globalAlpha = 1;
       ctx.font = `${10.5 / k}px system-ui, sans-serif`;
@@ -684,7 +975,7 @@ async function computeOpenTabs(bms) {
   } else {
     tabs = MOCK_TABS;
   }
-  const map = new Map();
+  const map = new Map(), ghosts = [];
   for (const t of tabs) {
     if (!/^https?:/.test(t.url || "")) continue;
     let u;
@@ -697,40 +988,82 @@ async function computeOpenTabs(bms) {
         path.startsWith(b.mPath + "/");
       if (hit && (!best || b.mPath.length > best.mPath.length)) best = b;
     }
+    const info = {
+      id: t.id, windowId: t.windowId, title: t.title || t.url,
+      url: t.url, host: u.host, active: !!t.active, last: t.lastAccessed || 0,
+    };
     if (best) {
       if (!map.has(best.id)) map.set(best.id, []);
-      map.get(best.id).push({
-        id: t.id, windowId: t.windowId, title: t.title || t.url,
-        url: t.url, active: !!t.active, last: t.lastAccessed || 0,
-      });
+      map.get(best.id).push(info);
+    } else {
+      ghosts.push(info);
     }
   }
   for (const list of map.values()) list.sort((a, b) => b.last - a.last);
-  return map;
+  return { map, ghosts };
 }
 function openKey(map) { return [...map.keys()].sort().join("|"); }
+function sessionKey() {
+  return openKey(openTabs) + "‖" +
+    ghostTabs.map((g) => g.id).sort((a, b) => a - b).join(",");
+}
 function updateBadge() {
   const matched = [...openTabs.values()].reduce((s, l) => s + l.length, 0);
   if (tabcountEl.classList.contains("warn")) return;
+  const loose = ghostTabs.length ? ` · ${ghostTabs.length} suelta${ghostTabs.length === 1 ? "" : "s"}` : "";
   tabStatus(onlyOpen
-    ? `⧉ solo abiertas (${matched}) — A para ver todo`
-    : `⧉ ${matched} abierta${matched === 1 ? "" : "s"}`);
+    ? `⧉ solo abiertas (${matched}) — º para ver todo`
+    : `⧉ ${matched} abierta${matched === 1 ? "" : "s"}${loose}`);
   tabcountEl.classList.toggle("active", onlyOpen);
 }
 async function refreshTabs() {
   tabcountEl.classList.remove("warn");
-  openTabs = await computeOpenTabs(allBms);
+  const res = await computeOpenTabs(allBms);
+  openTabs = res.map;
+  ghostTabs = res.ghosts;
   updateBadge();
-  const key = openKey(openTabs);
+  const key = sessionKey();
   const changed = key !== lastOpenKey;
   lastOpenKey = key;
-  if (onlyOpen && changed) { rebuildSoon(); return; }
+  if (changed && (onlyOpen || showGhosts)) { rebuildSoon(); return; }
   requestDraw();
+}
+
+// nodos fantasma: pestañas sin marcador, agrupadas por dominio
+function addGhostNodes() {
+  if (!showGhosts) return;
+  const byDom = new Map();
+  for (const g of ghostTabs) {
+    const dom = domainKey(g.host.toLowerCase());
+    if (!byDom.has(dom)) byDom.set(dom, []);
+    byDom.get(dom).push(g);
+  }
+  for (const [dom, list] of byDom) {
+    let hubId = null;
+    if (list.length >= 2) {
+      hubId = "gh:" + dom;
+      addNode({
+        id: hubId, type: "folder", subtype: "ghosthub", title: dom,
+        count: list.length, cluster: "ghost", parentId: null,
+      });
+    }
+    for (const t of list) {
+      addNode({
+        id: "g" + t.id, type: "ghost", title: t.title, url: t.url,
+        host: t.host, tab: t, tags: [], cluster: "ghost",
+        parentId: hubId, hubs: hubId ? [hubId] : [],
+      });
+      if (hubId) addLink(hubId, "g" + t.id, "tree");
+      if (IS_EXT) loadFavicon(t.url);
+    }
+  }
 }
 
 // poda el grafo dejando solo marcadores abiertos y sus hubs/carpetas ancestras
 function pruneToOpen() {
   const keep = new Set(openTabs.keys());
+  for (const n of nodes)
+    if (n.type === "ghost" || n.type === "cand") keep.add(n.id);
   for (const id of [...keep]) {
     const n = byId.get(id);
     if (!n) { keep.delete(id); continue; }
@@ -745,13 +1078,7 @@ function pruneToOpen() {
     const t = typeof l.target === "object" ? l.target.id : l.target;
     return keep.has(s) && keep.has(t);
   });
-  neighbors = new Map(nodes.map((n) => [n.id, new Set()]));
-  for (const l of links) {
-    const s = typeof l.source === "object" ? l.source.id : l.source;
-    const t = typeof l.target === "object" ? l.target.id : l.target;
-    neighbors.get(s)?.add(t);
-    neighbors.get(t)?.add(s);
-  }
+  rebuildNeighbors();
 }
 
 async function toggleOnlyOpen() {
@@ -815,6 +1142,8 @@ function findFolderAt(px, py, exclude = new Set()) {
   let best = null, bestD = Infinity;
   for (const n of nodes) {
     if (n.type !== "folder" || exclude.has(n.id)) continue;
+    if (viewMode === "folders" && n.subtype) continue;   // solo carpetas reales
+    if (viewMode === "tags" && n.subtype !== "tag") continue; // solo hubs de tag
     const d = Math.hypot(n.x - x, n.y - y);
     if (d <= radius(n) + 10 / tf.k && d < bestD) { best = n; bestD = d; }
   }
@@ -864,17 +1193,32 @@ const zoom = d3.zoom()
   })
   .on("zoom", (ev) => { tf = ev.transform; requestDraw(); });
 
+const ADOPTABLE = new Set(["ghost", "cand"]);
 function dropExcludes(subject) {
   if (viewMode === "domains") return null;          // sin semántica de soltado
   if (viewMode === "tags") {
-    if (subject.type !== "bm") return null;         // los hubs de tag no se sueltan
+    if (subject.type !== "bm" && !ADOPTABLE.has(subject.type)) return null;
     return new Set([...(subject.hubs || []), UNTAGGED]);
   }
+  if (ADOPTABLE.has(subject.type)) return new Set(subject.hubs || []);
   const ex = new Set([subject.id]);
   if (subject.parentId) ex.add(subject.parentId);
   if (subject.type === "folder")
     for (const d of members(subject)) ex.add(d.id);
   return ex;
+}
+
+// adopción: crear un marcador a partir de una pestaña suelta o un candidato
+async function adopt(subj, parentId, tag) {
+  const created = await api.create({
+    parentId, title: subj.title, url: subj.url,
+  });
+  if (tag) await setTags(subj.url, [...tagsOf(subj.url), tag]);
+  const where = tag ? `#${tag}` : `«${short(byId.get(parentId)?.title ?? "carpeta")}»`;
+  toast(`«${short(subj.title)}» guardado en ${where}`, () => safeOp(async () => {
+    await api.remove(created.id);
+    if (tag) await setTags(subj.url, tagsOf(subj.url).filter((t) => t !== tag));
+  }));
 }
 
 const drag = d3.drag()
@@ -901,12 +1245,24 @@ const drag = d3.drag()
   .on("end", (ev) => {
     canvas.classList.remove("dragging");
     if (!ev.active) simulation.alphaTarget(0);
-    ev.subject.fx = null;
-    ev.subject.fy = null;
+    if (!dropTarget) {
+      // arrastrar fija el nodo: layout manual persistente por vista
+      ev.subject.fx = ev.subject.x;
+      ev.subject.fy = ev.subject.y;
+      pinsOfView()[ev.subject.id] = { x: ev.subject.x, y: ev.subject.y };
+      saveLayoutSoon();
+    } else {
+      ev.subject.fx = null;
+      ev.subject.fy = null;
+    }
     if (dropTarget) {
       const subj = ev.subject, target = dropTarget;
       dropTarget = null;
-      if (viewMode === "tags") {
+      if (ADOPTABLE.has(subj.type)) {
+        safeOp(() => viewMode === "tags"
+          ? adopt(subj, OTHER_CONTAINER, target.tag)
+          : adopt(subj, target.raw));
+      } else if (viewMode === "tags") {
         const oldTags = tagsOf(subj.url);
         safeOp(async () => {
           await setTags(subj.url, [...oldTags, target.tag]);
@@ -985,6 +1341,12 @@ canvas.addEventListener("click", (ev) => {
   if (!n) { clearSearch(); return; }
   if (h.aux?.type === "sat") { activateTab(h.aux.tab); return; }
   if (h.aux?.type === "plus") { window.open(n.url); return; }
+  if (n.type === "ghost") { activateTab(n.tab); return; }
+  if (n.type === "cand") {
+    if (ev.metaKey || ev.ctrlKey) window.open(n.url);
+    else window.location.href = n.url;
+    return;
+  }
   if (n.type === "bm") {
     if (ev.metaKey || ev.ctrlKey) { window.open(n.url); return; }
     const open = openTabs.get(n.id);
@@ -993,6 +1355,33 @@ canvas.addEventListener("click", (ev) => {
   } else {
     zoomToNodes(members(n), 90);
   }
+});
+
+// ---------- pin / layout manual ----------
+function unpinNode(n) {
+  const pins = pinsOfView();
+  if (!pins[n.id]) return;
+  delete pins[n.id];
+  n.fx = null;
+  n.fy = null;
+  saveLayoutSoon();
+  simulation.alpha(0.25).restart();
+}
+function unpinAll() {
+  pinned[viewMode] = {};
+  for (const n of nodes) { n.fx = null; n.fy = null; }
+  saveLayoutSoon();
+  simulation.alpha(0.5).restart();
+  toast("Todos los nodos sueltos — la física recoloca la vista");
+}
+function pinItem(n) {
+  return pinsOfView()[n.id]
+    ? [{ label: "Soltar posición fijada", action: () => unpinNode(n) }]
+    : [];
+}
+canvas.addEventListener("dblclick", (ev) => {
+  const n = findAt(ev.offsetX, ev.offsetY);
+  if (n && n.type === "folder") unpinNode(n);
 });
 
 // ---------- menú contextual ----------
@@ -1029,7 +1418,19 @@ canvas.addEventListener("contextmenu", (ev) => {
       { label: "Nueva carpeta…", action: () => promptNewFolder() },
       { label: "Nuevo marcador…", action: () => promptNewBookmark() },
       { sep: true },
+      {
+        label: showGhosts ? "Ocultar pestañas sueltas" : "Mostrar pestañas sueltas",
+        action: async () => {
+          showGhosts = !showGhosts;
+          await saveStore("ghosts", showGhosts);
+          rebuildSoon();
+        },
+      },
+      { label: "Soltar todos los nodos", action: () => unpinAll() },
       { label: "Encuadrar todo", action: () => zoomToNodes(nodes, 80) },
+      { sep: true },
+      { label: "Exportar datos (JSON)…", action: () => exportData() },
+      { label: "Importar datos…", action: () => importData() },
     ]);
   } else if (n.type === "bm") {
     const open = openTabs.get(n.id) || [];
@@ -1045,8 +1446,28 @@ canvas.addEventListener("contextmenu", (ev) => {
       { label: "Renombrar…", action: () => promptRename(n) },
       { label: "Editar URL…", action: () => promptUrl(n) },
       { label: "Mover a carpeta…", action: () => promptMove(n) },
+      ...pinItem(n),
       { sep: true },
       { label: "Eliminar", danger: true, action: () => confirmDelete(n) },
+    ]);
+  } else if (n.type === "ghost") {
+    showMenu(ev.clientX, ev.clientY, [
+      { label: "Ir a la pestaña", action: () => activateTab(n.tab) },
+      { label: "Guardar como marcador…", action: () => promptAdopt(n) },
+      { sep: true },
+      { label: "Cerrar pestaña", danger: true, action: () => closeTab(n.tab) },
+    ]);
+  } else if (n.type === "cand") {
+    showMenu(ev.clientX, ev.clientY, [
+      { label: "Abrir", action: () => { window.location.href = n.url; } },
+      { label: "Abrir en pestaña nueva", action: () => window.open(n.url) },
+      { label: "Guardar como marcador…", action: () => promptAdopt(n) },
+      { sep: true },
+      { label: "Descartar sugerencia", danger: true, action: () => dismissCandidate(n.url) },
+    ]);
+  } else if (n.subtype === "ghosthub") {
+    showMenu(ev.clientX, ev.clientY, [
+      { label: "Encuadrar", action: () => zoomToNodes(members(n), 90) },
     ]);
   } else if (n.subtype === "tag") {
     showMenu(ev.clientX, ev.clientY, [
@@ -1070,6 +1491,7 @@ canvas.addEventListener("contextmenu", (ev) => {
       { label: "Nueva subcarpeta…", action: () => promptNewFolder(n) },
       { label: "Nuevo marcador aquí…", action: () => promptNewBookmark(n) },
       { label: "Mover a carpeta…", action: () => promptMove(n) },
+      ...pinItem(n),
       { sep: true },
       { label: `Eliminar carpeta (${n.count})`, danger: true, action: () => confirmDelete(n) },
     ]);
@@ -1189,7 +1611,7 @@ function promptTagFolder(folder) {
       if (m.type !== "bm") continue;
       tagsMap[m.url] = [...new Set([...tagsOf(m.url), ...add])];
     }
-    await saveStore("tags", tagsMap);
+    await persistTags();
     rebuildSoon();
   });
 }
@@ -1203,7 +1625,7 @@ function promptRenameTag(tag) {
     if (!to || to === tag) return;
     for (const [url, ts] of Object.entries(tagsMap))
       tagsMap[url] = [...new Set(ts.map((t) => t === tag ? to : t))];
-    await saveStore("tags", tagsMap);
+    await persistTags();
     rebuildSoon();
   });
 }
@@ -1220,9 +1642,32 @@ function confirmDeleteTag(tag) {
       if (left.length) tagsMap[url] = left;
       else delete tagsMap[url];
     }
-    await saveStore("tags", tagsMap);
+    await persistTags();
     rebuildSoon();
   });
+}
+
+function promptAdopt(n) {
+  openDialog({
+    title: "Guardar como marcador",
+    fields: [
+      { name: "title", label: "Título", value: n.title, required: true },
+      folderSelectField("dest", "Carpeta", folderOptions()[0]?.id ?? ""),
+    ],
+    submitLabel: "Guardar",
+  }, (v) => safeOp(() => adopt({ ...n, title: v.title }, v.dest)));
+}
+
+async function closeTab(tab) {
+  if (!IS_EXT) {
+    const i = MOCK_TABS.findIndex((t) => t.id === tab.id);
+    if (i >= 0) MOCK_TABS.splice(i, 1);
+    toast(`Vista previa: cerraría «${short(tab.title)}»`);
+    rescanTabsSoon();
+    return;
+  }
+  try { await chrome.tabs.remove(tab.id); }
+  catch (e) { toast("No se pudo cerrar: " + (e.message || e)); }
 }
 
 function promptRename(n) {
@@ -1315,53 +1760,214 @@ function toast(msg, undoFn = null) {
   toastTimer = setTimeout(() => { toastEl.hidden = true; }, 6000);
 }
 
-// ---------- buscador ----------
+// ---------- buscador-paleta ----------
+const resultsEl = document.getElementById("results");
+let searchItems = [];       // resultados visibles
+let searchSel = -1;         // índice seleccionado
+let searchFocusNode = null; // nodo resaltado desde la lista
+let dwellTimer = null;      // 3 s de permanencia -> focalizar
+let preSearchTf = null;     // transform previo al modo búsqueda
+
+function enterSearchMode() {
+  if (preSearchTf) return;
+  preSearchTf = tf;
+  zoomToNodes(nodes, 80, 450);   // el grafo se ve amplio, sin zoom
+}
+function exitSearchMode() {
+  if (preSearchTf) {
+    d3.select(canvas).transition().duration(450)
+      .call(zoom.transform, preSearchTf);
+    preSearchTf = null;
+  }
+  clearTimeout(dwellTimer);
+  searchFocusNode = null;
+  resultsEl.hidden = true;
+  searchItems = [];
+  searchSel = -1;
+}
+
+function nodeKind(n) {
+  if (n.type === "ghost") return "pestaña";
+  if (n.type === "cand") return "sugerencia";
+  if (n.type === "bm") return openTabs.has(n.id) ? "abierta" : "marcador";
+  if (n.subtype === "tag") return "tag";
+  return "carpeta";
+}
+
+function buildResults(q) {
+  const query = q.trim().toLowerCase();
+  const scored = [];
+  for (const n of nodes) {
+    const title = (n.title || "").toLowerCase();
+    const url = (n.url || "").toLowerCase();
+    const tagText = (n.tags || []).map((t) => "#" + t).join(" ");
+    let s = -1;
+    if (!query) {
+      // sin texto: la sesión abierta primero, luego lo más usado
+      if (n.type === "bm" && openTabs.has(n.id)) s = 90;
+      else if (n.type === "ghost") s = 80;
+      else if (n.type === "bm") s = (n.heat ?? 0) * 50;
+    } else if (query.startsWith("#")) {
+      const tq = query.slice(1);
+      if (n.subtype === "tag" && n.tag?.includes(tq)) s = 100;
+      else if ((n.tags || []).some((t) => t.includes(tq))) s = 60;
+    } else {
+      if (title.startsWith(query)) s = 100;
+      else if (title.includes(query)) s = 70;
+      else if (url.includes(query)) s = 50;
+      else if (tagText.includes(query)) s = 40;
+      if (s > 0 && n.type === "bm" && openTabs.has(n.id)) s += 15;
+      if (s > 0 && n.type === "folder") s -= 10;
+    }
+    if (s > 0) scored.push({ n, s });
+  }
+  scored.sort((a, b) => b.s - a.s);
+  return scored.slice(0, 12).map((x) => x.n);
+}
+
+function renderResults() {
+  resultsEl.innerHTML = "";
+  resultsEl.hidden = !searchItems.length;
+  searchItems.forEach((n, i) => {
+    const li = document.createElement("li");
+    li.classList.toggle("sel", i === searchSel);
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.background = nodeColor(n);
+    const t = document.createElement("span");
+    t.className = "rt";
+    t.textContent = n.title;
+    t.title = n.url || n.title;
+    const kind = document.createElement("span");
+    kind.className = "kind";
+    kind.textContent = nodeKind(n);
+    li.append(dot, t, kind);
+    li.addEventListener("mousedown", (ev) => { ev.preventDefault(); runResult(n); });
+    li.addEventListener("mouseenter", () => selectResult(i, false));
+    resultsEl.appendChild(li);
+  });
+}
+
+function selectResult(i, scroll = true) {
+  searchSel = i;
+  [...resultsEl.children].forEach((li, j) => li.classList.toggle("sel", j === i));
+  const n = searchItems[i] ?? null;
+  searchFocusNode = n;
+  clearTimeout(dwellTimer);
+  if (n) {
+    // quedarse 3 s sobre un resultado focaliza ese nodo en el grafo
+    dwellTimer = setTimeout(() => zoomToNodes([n], 150), 3000);
+    if (scroll) resultsEl.children[i]?.scrollIntoView({ block: "nearest" });
+  }
+  requestDraw();
+}
+
+function runResult(n) {
+  if (!n) return;
+  if (n.type === "ghost") { activateTab(n.tab); return; }
+  if (n.type === "bm") {
+    const open = openTabs.get(n.id);
+    if (open?.length) { activateTab(open[0]); return; }
+    window.location.href = n.url;
+    return;
+  }
+  if (n.type === "cand") { window.location.href = n.url; return; }
+  if (n.subtype === "tag") {
+    searchBox.value = "#" + n.tag;
+    applySearch(searchBox.value);
+    return;
+  }
+  zoomToNodes(members(n), 90);
+  searchBox.blur();
+}
+
 function applySearch(q) {
   searchQuery = q.trim().toLowerCase();
-  if (!searchQuery) { focusSet = null; requestDraw(); return; }
-  const tagQuery = searchQuery.startsWith("#") ? searchQuery.slice(1) : null;
-  const s = new Set();
-  for (const n of nodes) {
-    let hit;
-    if (tagQuery !== null) {
-      hit = n.type === "bm"
-        ? n.tags.some((t) => t.includes(tagQuery))
-        : (n.subtype === "tag" && n.tag && n.tag.includes(tagQuery));
-    } else {
-      const hay = (n.title + " " + (n.url || "") + " " +
-        (n.tags || []).map((t) => "#" + t).join(" ")).toLowerCase();
-      hit = hay.includes(searchQuery);
+  if (!searchQuery) {
+    focusSet = null;
+  } else {
+    const tagQuery = searchQuery.startsWith("#") ? searchQuery.slice(1) : null;
+    const s = new Set();
+    for (const n of nodes) {
+      let hit;
+      if (tagQuery !== null) {
+        hit = n.subtype === "tag"
+          ? (n.tag && n.tag.includes(tagQuery))
+          : (n.tags || []).some((t) => t.includes(tagQuery));
+      } else {
+        const hay = (n.title + " " + (n.url || "") + " " +
+          (n.tags || []).map((t) => "#" + t).join(" ")).toLowerCase();
+        hit = hay.includes(searchQuery);
+      }
+      if (hit) {
+        s.add(n.id);
+        for (const h of n.hubs || []) s.add(h);
+        if (n.parentId) s.add(n.parentId);
+      }
     }
-    if (hit) {
-      s.add(n.id);
-      for (const h of n.hubs || []) s.add(h);
-      if (n.parentId) s.add(n.parentId);
-    }
+    focusSet = s;
   }
-  focusSet = s;
+  searchItems = buildResults(q);
+  searchSel = searchItems.length ? 0 : -1;
+  renderResults();
+  selectResult(searchSel, false);
   requestDraw();
 }
 function clearSearch() {
-  if (!searchQuery && !focusSet) return;
-  searchBox.value = ""; searchQuery = ""; focusSet = null;
+  searchBox.value = "";
+  searchQuery = "";
+  focusSet = null;
+  exitSearchMode();
   requestDraw();
 }
+
 searchBox.addEventListener("input", (e) => applySearch(e.target.value));
+searchBox.addEventListener("focus", () => {
+  enterSearchMode();
+  applySearch(searchBox.value);
+});
+searchBox.addEventListener("blur", () => {
+  setTimeout(() => {
+    if (document.activeElement !== searchBox) {
+      resultsEl.hidden = true;
+      clearTimeout(dwellTimer);
+      searchFocusNode = null;
+      requestDraw();
+    }
+  }, 150);
+});
 searchBox.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    const first = nodes.find((n) => n.type === "bm" && focusSet?.has(n.id));
-    if (first) window.location.href = first.url;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!searchItems.length) return;
+    const d = e.key === "ArrowDown" ? 1 : -1;
+    selectResult((searchSel + d + searchItems.length) % searchItems.length);
+  } else if (e.key === "Enter") {
+    runResult(searchItems[searchSel] ?? searchItems[0]);
   } else if (e.key === "Escape") {
-    clearSearch(); searchBox.blur();
+    clearSearch();
+    searchBox.blur();
   }
 });
+
 document.addEventListener("keydown", (e) => {
-  if (document.activeElement === searchBox || dlg.open) return;
+  if (dlg.open) return;
+  const typing = document.activeElement === searchBox ||
+    /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || "");
+  if (e.key === "º" || e.key === "ª") {
+    if (!typing) { e.preventDefault(); toggleOnlyOpen(); }
+    return;
+  }
+  if (typing) return;
   if (e.key === "/") {
-    e.preventDefault(); searchBox.focus();
-  } else if ((e.key === "a" || e.key === "A") &&
-      !e.metaKey && !e.ctrlKey && !e.altKey) {
-    e.preventDefault(); toggleOnlyOpen();
+    e.preventDefault();
+    searchBox.focus();
+  } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    // escribir en cualquier parte activa el buscador directamente
+    e.preventDefault();
+    searchBox.focus();
+    searchBox.value += e.key;
+    applySearch(searchBox.value);
   }
 });
 
@@ -1469,9 +2075,16 @@ async function rebuild(fit) {
   buildGraph(lastTree);
   allBms = nodes.filter((n) => n.type === "bm");
   tabcountEl.classList.remove("warn");
-  openTabs = await computeOpenTabs(allBms);
-  lastOpenKey = openKey(openTabs);
+  const res = await computeOpenTabs(allBms);
+  openTabs = res.map;
+  ghostTabs = res.ghosts;
+  lastOpenKey = sessionKey();
   updateBadge();
+  await computeHistory();
+  for (const n of allBms) n.heat = heatByUrl.get(n.url) ?? 0.35;
+  addCandidateNodes();
+  addGhostNodes();
+  rebuildNeighbors();
   if (onlyOpen) {
     pruneToOpen();
     clusters = clusters.filter((c) => byId.has(c.id));
@@ -1488,6 +2101,12 @@ async function rebuild(fit) {
         n.y = par.y + (Math.random() - 0.5) * 50;
       }
     }
+  }
+  // layout manual: aplicar posiciones fijadas de esta vista
+  const pins = pinned[viewMode] || {};
+  for (const n of nodes) {
+    const p = pins[n.id];
+    if (p) { n.x = p.x; n.y = p.y; n.fx = p.x; n.fy = p.y; }
   }
   const total = nodes.filter((n) => n.type === "bm").length;
   emptyEl.hidden = total > 0;
@@ -1521,7 +2140,9 @@ if (IS_EXT) {
   chrome.bookmarks.onChanged.addListener(rebuildSoon);
   chrome.bookmarks.onMoved.addListener(rebuildSoon);
   chrome.storage?.onChanged?.addListener((ch, area) => {
-    if (area === "local" && ch.tags) {
+    if (area === "sync" && Object.keys(ch).some((k) => k.startsWith("tags_"))) {
+      (async () => { tagsMap = await loadTags(); rebuildSoon(); })();
+    } else if (area === "local" && ch.tags) {
       tagsMap = ch.tags.newValue || {};
       rebuildSoon();
     }
@@ -1538,7 +2159,11 @@ if (IS_EXT) {
   if (!VIEW_LABELS[viewMode]) viewMode = "folders";
   onlyOpen = params.get("filter") === "open" ||
     await loadStore("onlyOpen", false);
-  tagsMap = await loadStore("tags", {});
+  showGhosts = await loadStore("ghosts", true);
+  showCands = params.get("cands") === "1" || await loadStore("cands", false);
+  candIgnore = await loadStore("candIgnore", []);
+  pinned = await loadStore("layout", {});
+  tagsMap = await loadTags();
   buildViews();
   await rebuild(true);
 
@@ -1553,7 +2178,7 @@ if (IS_EXT) {
       if (urls.has(url)) seed[url] = ts;
     if (Object.keys(seed).length) {
       tagsMap = seed;
-      await saveStore("tags", tagsMap);
+      await persistTags();
       toast("Etiquetas iniciales generadas del análisis — clic derecho › Etiquetas para editarlas");
       if (viewMode === "tags") {
         await rebuild(false);
