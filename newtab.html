@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nueva pestaña</title>
+  <link rel="stylesheet" href="newtab.css">
+</head>
+<body>
+  <header id="topbar">
+    <div id="brand">GraphMarks</div>
+    <nav id="views" aria-label="Vista del grafo"></nav>
+    <input id="search" type="search" placeholder="Buscar…  ( / , #tag )" autocomplete="off" spellcheck="false">
+    <nav id="legend" aria-label="Carpetas"></nav>
+    <button id="tabcount" hidden title="Pestañas abiertas que casan con marcadores · clic o tecla A: ver solo las abiertas"></button>
+    <button id="list-toggle" title="Vista de lista">☰ Lista</button>
+  </header>
+
+  <main id="stage">
+    <canvas id="graph"></canvas>
+    <div id="tooltip" role="status" hidden></div>
+    <div id="empty" hidden>
+      <h2>No hay marcadores</h2>
+      <p>Importa marcadores desde <code>chrome://bookmarks</code> y aparecerán aquí como un grafo.</p>
+    </div>
+  </main>
+
+  <aside id="list-panel" hidden aria-label="Marcadores en lista"></aside>
+
+  <div id="ctxmenu" hidden></div>
+  <dialog id="dlg"></dialog>
+  <div id="toast" hidden></div>
+
+  <footer id="hint">clic abre (o va a la pestaña si ya está abierta) · ⌘clic pestaña nueva · clic derecho edita y etiqueta · A: solo abiertas · / buscar</footer>
+
+  <script src="vendor/d3.v7.min.js"></script>
+  <script src="mock-data.js"></script>
+  <script src="seed-tags.js"></script>
+  <script src="newtab.js"></script>
+</body>
+</html>

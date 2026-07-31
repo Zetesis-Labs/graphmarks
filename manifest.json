@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "GraphMarks — Marcadores en grafo",
+  "version": "0.1.0",
+  "description": "Nueva pestaña que muestra tus marcadores como un grafo interactivo, al estilo del graph view de Quartz.",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "permissions": ["bookmarks", "favicon", "tabs", "storage"]
+}
