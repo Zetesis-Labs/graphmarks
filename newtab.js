@@ -477,18 +477,28 @@ async function restoreSession(s) {
       try { await chrome.tabs.update(created[ai].id, { active: true }); }
       catch { /* seguir */ }
     }
-    // Chrome no deja recrear la división, pero sí dejar el par seleccionado:
-    // clic derecho sobre la selección → «vista dividida» y listo
+    // Chrome no expone API para recrear la división; si algún día aparece
+    // chrome.tabs.split, se usará sola. Mientras: dejar el par seleccionado
+    // (clic derecho sobre la selección → «vista dividida»).
     const bySplit = new Map();
     w.tabs.forEach((t, i) => {
       if (t.splitId == null || !created[i]) return;
       if (!bySplit.has(t.splitId)) bySplit.set(t.splitId, []);
-      bySplit.get(t.splitId).push(i);
+      bySplit.get(t.splitId).push(created[i].id);
     });
-    const pair = [...bySplit.values()].find((ix) => ix.length >= 2);
-    if (pair) {
-      try { await chrome.tabs.highlight({ windowId: win.id, tabs: pair }); }
-      catch { /* seguir */ }
+    for (const ids of bySplit.values()) {
+      if (ids.length < 2) continue;
+      if (typeof chrome.tabs.split === "function") {
+        try { await chrome.tabs.split({ tabIds: ids }); continue; }
+        catch { /* caer a la selección */ }
+      }
+      try {
+        // índices frescos: fijar/agrupar puede haberlos desplazado
+        const idx = [];
+        for (const id of ids) idx.push((await chrome.tabs.get(id)).index);
+        await chrome.tabs.highlight({ windowId: win.id, tabs: idx });
+      } catch { /* seguir */ }
+      break;   // solo se puede dejar seleccionado un par por ventana
     }
   }
   const splits = new Set(
