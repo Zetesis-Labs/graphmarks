@@ -85,7 +85,8 @@ function firefoxManifest(m) {
   f.browser_specific_settings = {
     gecko: {
       id: 'graphmarks@zetesis.xyz',
-      strict_min_version: '121.0',
+      // 140 = ESR 2025: data_collection_permissions (140) y tabGroups (139) quedan cubiertos
+      strict_min_version: '140.0',
       // obligatorio en AMO desde 2025: graphmarks no recoge ni transmite nada
       data_collection_permissions: { required: ['none'] }
     }
