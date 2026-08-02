@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.5](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.4...v0.6.5) (2026-08-02)
+
+
+### Bug Fixes
+
+* retirar el spike de SurrealDB embebido ([a4e1834](https://github.com/Zetesis-Labs/graphmarks/commit/a4e1834c7addff7aee5c25c953eb779392addf1c))
+
 ## [0.6.4](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.3...v0.6.4) (2026-08-02)
 
 
