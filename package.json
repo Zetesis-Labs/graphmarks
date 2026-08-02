@@ -35,13 +35,11 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@surrealdb/wasm": "2.6.1",
     "d3-drag": "^3.0.0",
     "d3-force": "^3.0.0",
     "d3-selection": "^3.0.0",
     "d3-transition": "^3.0.1",
-    "d3-zoom": "^3.0.0",
-    "surrealdb": "^2.0.8"
+    "d3-zoom": "^3.0.0"
   },
   "packageManager": "pnpm@10.14.0"
 }

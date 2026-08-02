@@ -1,14 +1,12 @@
 /* Build de la extensión: dos bundles IIFE autocontenidos (los módulos ES no
    cargan bajo file://, y la preview standalone debe seguir funcionando) más
    los catálogos _locales/ que Chrome necesita para traducir el manifest.
-   SurrealDB va aparte en dos bundles ESM (solo cargan dentro de la extensión,
-   vía import() dinámico y Worker de tipo módulo).
 
    El build produce además `firefox/`: la misma extensión con el manifest
    parcheado para Firefox (event page en vez de service worker, gecko.id,
    sin el permiso `favicon`, que es exclusivo de Chrome). Los bundles son
    idénticos; solo cambia el manifest. Cargar con `pnpm dev:firefox`. */
-import { copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { build, context } from 'esbuild'
 
 const watch = process.argv.includes('--watch')
@@ -52,31 +50,8 @@ const common = {
 
 const jobs = [
   { ...common, entryPoints: ['src/main.ts'], outfile: 'dist/newtab.js' },
-  { ...common, entryPoints: ['src/background.ts'], outfile: 'dist/background.js' },
-  { ...common, format: 'esm', entryPoints: ['src/surreal/client.ts'], outfile: 'dist/surreal.js' },
-  /* El agente worker se bundlea desde el paquete (importa `surrealdb` a pelo y
-     el navegador no resuelve bare specifiers). El nombre de salida no es libre:
-     createWasmWorkerEngines hace new Worker('./worker-agent.mjs') relativo a
-     dist/surreal.js. */
-  {
-    ...common,
-    format: 'esm',
-    entryPoints: ['node_modules/@surrealdb/wasm/dist/worker-agent.mjs'],
-    outfile: 'dist/worker-agent.mjs'
-  }
+  { ...common, entryPoints: ['src/background.ts'], outfile: 'dist/background.js' }
 ]
-
-/* El agente worker de @surrealdb/wasm resuelve el binario como
-   `../wasm/surrealdb_bg.wasm` relativo al bundle, así que desde
-   dist/surreal-worker.js debe existir wasm/ en la raíz de la extensión. */
-async function copyWasm() {
-  await mkdir(new URL('../wasm/', import.meta.url), { recursive: true })
-  await copyFile(
-    new URL('../node_modules/@surrealdb/wasm/wasm/surrealdb_bg.wasm', import.meta.url),
-    new URL('../wasm/surrealdb_bg.wasm', import.meta.url)
-  )
-  console.log('wasm/surrealdb_bg.wasm copiado')
-}
 
 function firefoxManifest(m) {
   const f = structuredClone(m)
@@ -120,7 +95,6 @@ async function stageFirefox() {
 }
 
 await emitLocales()
-await copyWasm()
 
 if (watch) {
   for (const job of jobs) {
