@@ -1,7 +1,6 @@
 {
   "extName": "GraphMarks — Bookmarks as a graph",
   "extDescription": "Your new tab as an interactive graph of bookmarks: folders, tags and the tabs you already have open.",
-
   "viewFolders": "Folders",
   "viewTags": "Tags",
   "viewDomains": "Domains",
@@ -14,30 +13,25 @@
   "winChipTitle": "Filter tabs by window",
   "tabCountTitle": "Open tabs matching bookmarks · click or press º to show only the open ones",
   "sessionsTitle": "Save and restore sets of windows (with tab groups)",
-
   "fatalTitle": "GraphMarks error",
   "emptyNoBookmarksTitle": "No bookmarks",
   "emptyNoBookmarksBody": "Import bookmarks from chrome://bookmarks and they will show up here as a graph.",
   "emptyNoOpenTitle": "No open tabs",
   "emptyNoOpenBody": "No open tab matches your bookmarks. Press º or the ⧉ button to see everything.",
-
   "folderUnnamed": "(unnamed)",
   "folderBookmarks": "Bookmarks",
   "hubUntagged": "· untagged",
   "hubLooseDomains": "· loose",
-
   "kindTab": "tab",
   "kindOpen": "open",
   "kindBookmark": "bookmark",
   "kindTag": "tag",
   "kindFolder": "folder",
-
   "tooltipGoToTab": "click: go to the open tab",
   "tooltipOpenNewTab": "Open in a new tab",
   "tooltipOpenCount": "$1 open tabs",
   "tooltipOpenCountOne": "1 open tab",
   "tooltipBookmarks": "$1 bookmarks",
-
   "badgeOpen": "⧉ $1 open",
   "badgeOpenOne": "⧉ 1 open",
   "badgeLoose": " · $1 loose",
@@ -45,7 +39,6 @@
   "badgeOnlyOpen": "⧉ only open ($1) — press º to see all",
   "badgeNoTabsPermission": "⧉ no tab access — the «tabs» permission is missing",
   "badgeHiddenUrls": "⧉ Chrome is hiding URLs — accept the «tabs» permission in chrome://extensions",
-
   "winAll": "⊞ All",
   "winCurrent": "⊞ This window",
   "winNumbered": "⊞ Window $1",
@@ -53,7 +46,6 @@
   "winMenuCurrent": "This window",
   "winMenuItem": "Window $1 · $2 ($3)",
   "winUntitled": "untitled",
-
   "menuOpen": "Open",
   "menuOpenNewTab": "Open in a new tab",
   "menuGoToOpenTab": "Go to the open tab",
@@ -83,7 +75,6 @@
   "menuFrameEverything": "Frame everything",
   "menuExport": "Export data (JSON)…",
   "menuImport": "Import data…",
-
   "dlgCancel": "Cancel",
   "dlgSave": "Save",
   "dlgCreate": "Create",
@@ -102,7 +93,6 @@
   "fieldTagsToAdd": "Tags to add",
   "phNewFolder": "New folder",
   "phUrl": "https://…",
-
   "dlgTagsOf": "Tags of «$1»",
   "dlgTagFolder": "Tag everything in «$1»",
   "dlgTagFolderNote": "Adds the tags to the $1 bookmarks in the folder (without removing existing ones).",
@@ -119,7 +109,6 @@
   "dlgDeleteBookmark": "Delete «$1»?",
   "dlgDeleteFolder": "Delete the folder «$1»?",
   "dlgDeleteFolderNote": "The folder and its $1 bookmarks will be deleted.",
-
   "sessionsChip": "▤ Sessions",
   "sessionsChipCount": "▤ Sessions · $1",
   "sessionSave": "Save open windows…",
@@ -133,7 +122,6 @@
   "phSessionName": "e.g. Konect project",
   "dlgDiagnostics": "Session diagnostics",
   "diagOnlyInExtension": "Diagnostics only make sense inside the extension",
-
   "toastUndo": "Undo",
   "toastGrant": "Grant",
   "toastPreviewNoSave": "Preview: changes are not saved to Chrome",
@@ -168,6 +156,9 @@
   "toastSessionRestored": "Session «$1» restored",
   "toastSessionRestoredSplit": "Session «$1» restored — Chrome does not let extensions recreate split view; the pair is left selected: right-click the selection → «split view»",
   "toastSessionDeleted": "Session «$1» deleted",
-
-  "omniboxDefault": "GraphMarks: search your bookmarks"
+  "omniboxDefault": "GraphMarks: search your bookmarks",
+  "menuCustomIcon": "Custom icon…",
+  "menuCustomIconRemove": "Remove custom icon",
+  "menuFolderColor": "Folder color…",
+  "menuFolderColorRemove": "Remove custom color"
 }

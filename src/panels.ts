@@ -9,6 +9,9 @@ import type { Cluster, ViewMode } from './types'
 import { legendEl, listPanel, listToggle, viewsEl } from './ui/dom'
 
 function clusterDotColor(c: Cluster): string {
+  const raw = S.byId.get(c.id)?.raw
+  const custom = raw ? S.customColors[`f:${raw}`] : undefined
+  if (custom) return custom
   const slot = c.slot ?? -1
   return slot >= 0 ? `var(${SERIES_VARS[slot]})` : 'var(--other)'
 }

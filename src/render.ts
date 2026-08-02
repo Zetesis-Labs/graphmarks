@@ -1,9 +1,10 @@
 import { PLUS_R, SAT_R } from './constants'
+import { customIcon } from './custom'
 import { plusPosition, satPositions, satScale } from './graph/hit'
 import { clusterColor, linkColor, nodeColor, radius } from './graph/style'
 import { convexHull, type Pt } from './lib/hull'
 import { strHash } from './lib/utils'
-import { COLORS, pinsOfView, S } from './state'
+import { COLORS, type FaviconRecord, pinsOfView, S } from './state'
 import type { GraphNode, LinkKind } from './types'
 import { canvas, ctx } from './ui/dom'
 
@@ -164,8 +165,8 @@ function glowSprite(color: string): HTMLCanvasElement {
   return s
 }
 
-function drawFavicon(n: GraphNode, r: number, col: string, dashed: boolean, k: number): void {
-  const fav = n.url ? S.favicons.get(n.url) : undefined
+function drawFavicon(n: GraphNode, r: number, col: string, dashed: boolean, k: number, rec?: FaviconRecord): void {
+  const fav = rec ?? (n.url ? S.favicons.get(n.url) : undefined)
   const kk = Math.max(k, 1)
   if (dashed) ctx.setLineDash([3 / kk, 2.5 / kk])
   if (fav?.ok) {
@@ -230,10 +231,13 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
     ctx.globalAlpha = alpha
   }
 
+  const icon = customIcon(n)
   ctx.beginPath()
   ctx.arc(n.x ?? 0, n.y ?? 0, r, 0, Math.PI * 2)
   if (n.type === 'ghost') {
     drawFavicon(n, r, col, true, k)
+  } else if (n.type === 'folder' && !n.subtype && icon?.ok) {
+    drawFavicon(n, r, col, false, k, icon)
   } else if (n.type === 'folder' && n.subtype) {
     // hubs de tag/dominio/fantasma: huecos, para distinguirlos de carpetas
     if (n.subtype === 'ghosthub') ctx.setLineDash([4 / kk, 3 / kk])
@@ -243,8 +247,8 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
     ctx.strokeStyle = col
     ctx.stroke()
     ctx.setLineDash([])
-  } else if (wantsFavicon && n.url && S.favicons.get(n.url)?.ok) {
-    drawFavicon(n, r, col, false, k)
+  } else if (wantsFavicon && (icon?.ok || (n.url && S.favicons.get(n.url)?.ok))) {
+    drawFavicon(n, r, col, false, k, icon?.ok ? icon : undefined)
   } else {
     ctx.fillStyle = col
     ctx.fill()

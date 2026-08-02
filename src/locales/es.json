@@ -1,7 +1,6 @@
 {
   "extName": "GraphMarks — Marcadores en grafo",
   "extDescription": "Tu nueva pestaña como un grafo interactivo de marcadores: carpetas, etiquetas y las pestañas que tienes abiertas.",
-
   "viewFolders": "Carpetas",
   "viewTags": "Tags",
   "viewDomains": "Dominios",
@@ -14,30 +13,25 @@
   "winChipTitle": "Filtrar las pestañas por ventana",
   "tabCountTitle": "Pestañas abiertas que casan con marcadores · clic o tecla º: ver solo las abiertas",
   "sessionsTitle": "Guardar y restaurar conjuntos de ventanas (con grupos de pestañas)",
-
   "fatalTitle": "Error en GraphMarks",
   "emptyNoBookmarksTitle": "No hay marcadores",
   "emptyNoBookmarksBody": "Importa marcadores desde chrome://bookmarks y aparecerán aquí como un grafo.",
   "emptyNoOpenTitle": "Sin pestañas abiertas",
   "emptyNoOpenBody": "Ninguna pestaña abierta casa con tus marcadores. Pulsa º o el botón ⧉ para ver todo.",
-
   "folderUnnamed": "(sin nombre)",
   "folderBookmarks": "Marcadores",
   "hubUntagged": "· sin etiquetar",
   "hubLooseDomains": "· sueltos",
-
   "kindTab": "pestaña",
   "kindOpen": "abierta",
   "kindBookmark": "marcador",
   "kindTag": "tag",
   "kindFolder": "carpeta",
-
   "tooltipGoToTab": "clic: ir a la pestaña abierta",
   "tooltipOpenNewTab": "Abrir en pestaña nueva",
   "tooltipOpenCount": "$1 pestañas abiertas",
   "tooltipOpenCountOne": "1 pestaña abierta",
   "tooltipBookmarks": "$1 marcadores",
-
   "badgeOpen": "⧉ $1 abiertas",
   "badgeOpenOne": "⧉ 1 abierta",
   "badgeLoose": " · $1 sueltas",
@@ -45,7 +39,6 @@
   "badgeOnlyOpen": "⧉ solo abiertas ($1) — º para ver todo",
   "badgeNoTabsPermission": "⧉ sin acceso a pestañas — falta el permiso «tabs»",
   "badgeHiddenUrls": "⧉ Chrome oculta las URLs — acepta el permiso «tabs» en chrome://extensions",
-
   "winAll": "⊞ Todas",
   "winCurrent": "⊞ Esta ventana",
   "winNumbered": "⊞ Ventana $1",
@@ -53,7 +46,6 @@
   "winMenuCurrent": "Esta ventana",
   "winMenuItem": "Ventana $1 · $2 ($3)",
   "winUntitled": "sin título",
-
   "menuOpen": "Abrir",
   "menuOpenNewTab": "Abrir en pestaña nueva",
   "menuGoToOpenTab": "Ir a la pestaña abierta",
@@ -83,7 +75,6 @@
   "menuFrameEverything": "Encuadrar todo",
   "menuExport": "Exportar datos (JSON)…",
   "menuImport": "Importar datos…",
-
   "dlgCancel": "Cancelar",
   "dlgSave": "Guardar",
   "dlgCreate": "Crear",
@@ -102,7 +93,6 @@
   "fieldTagsToAdd": "Etiquetas a añadir",
   "phNewFolder": "Nueva carpeta",
   "phUrl": "https://…",
-
   "dlgTagsOf": "Etiquetas de «$1»",
   "dlgTagFolder": "Etiquetar todo «$1»",
   "dlgTagFolderNote": "Añade las etiquetas a los $1 marcadores de la carpeta (sin quitar las existentes).",
@@ -119,7 +109,6 @@
   "dlgDeleteBookmark": "¿Eliminar «$1»?",
   "dlgDeleteFolder": "¿Eliminar la carpeta «$1»?",
   "dlgDeleteFolderNote": "Se eliminarán la carpeta y sus $1 marcadores.",
-
   "sessionsChip": "▤ Sesiones",
   "sessionsChipCount": "▤ Sesiones · $1",
   "sessionSave": "Guardar ventanas abiertas…",
@@ -133,7 +122,6 @@
   "phSessionName": "p. ej. Proyecto Konect",
   "dlgDiagnostics": "Diagnóstico de sesiones",
   "diagOnlyInExtension": "El diagnóstico solo tiene sentido dentro de la extensión",
-
   "toastUndo": "Deshacer",
   "toastGrant": "Conceder",
   "toastPreviewNoSave": "Vista previa: los cambios no se guardan en Chrome",
@@ -168,6 +156,9 @@
   "toastSessionRestored": "Sesión «$1» restaurada",
   "toastSessionRestoredSplit": "Sesión «$1» restaurada — Chrome no deja recrear la vista dividida desde extensiones; el par queda seleccionado: clic derecho sobre la selección → «vista dividida»",
   "toastSessionDeleted": "Sesión «$1» eliminada",
-
-  "omniboxDefault": "GraphMarks: buscar en tus marcadores"
+  "omniboxDefault": "GraphMarks: buscar en tus marcadores",
+  "menuCustomIcon": "Icono personalizado…",
+  "menuCustomIconRemove": "Quitar icono personalizado",
+  "menuFolderColor": "Color de la carpeta…",
+  "menuFolderColorRemove": "Quitar color personalizado"
 }

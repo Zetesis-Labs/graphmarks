@@ -1,7 +1,14 @@
 import { COLORS, S } from '../state'
 import type { GraphLink, GraphNode } from '../types'
 
+function customOf(id: string | undefined): string | undefined {
+  const raw = id ? S.byId.get(id)?.raw : undefined
+  return raw ? S.customColors[`f:${raw}`] : undefined
+}
+
 export function clusterColor(cid: string | undefined): string {
+  const custom = customOf(cid)
+  if (custom) return custom
   const c = cid ? S.clusterOf.get(cid) : undefined
   if (!c || (c.slot ?? -1) < 0) return COLORS.other
   return COLORS.series[c.slot ?? 0] ?? COLORS.other
@@ -9,6 +16,16 @@ export function clusterColor(cid: string | undefined): string {
 
 export function nodeColor(n: GraphNode): string {
   if (n.type === 'ghost' || n.subtype === 'ghosthub') return COLORS.muted
+  // color personalizado: el de la propia carpeta, o el de la carpeta directa
+  // del marcador (solo en la vista de carpetas: en tags/dominios manda el hub)
+  if (n.type === 'folder' && !n.subtype && n.raw) {
+    const own = S.customColors[`f:${n.raw}`]
+    if (own) return own
+  }
+  if (n.type === 'bm' && S.viewMode === 'folders') {
+    const parent = customOf(n.folderId ?? undefined)
+    if (parent) return parent
+  }
   if (n.type === 'folder' && n.cluster !== n.id && !S.clusterOf.get(n.cluster ?? '')) return COLORS.muted
   return clusterColor(n.cluster)
 }
