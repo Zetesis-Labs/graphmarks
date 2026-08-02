@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.4](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.3...v0.6.4) (2026-08-02)
+
+
+### Bug Fixes
+
+* id de gecko nueva — AMO quema las ids de complementos borrados ([b0972a1](https://github.com/Zetesis-Labs/graphmarks/commit/b0972a1b77a58106dd96ab40461a64612c81222b))
+
 ## [0.6.3](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.2...v0.6.3) (2026-08-02)
 
 
