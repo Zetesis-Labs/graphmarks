@@ -2,8 +2,11 @@
    módulo depende de import.meta/Worker de tipo módulo. Se carga perezosamente
    vía import() dinámico solo dentro de la extensión. Autocontenido a
    propósito: recibe los datos como entrada y no toca estado ni DOM. */
-import { createWasmWorkerEngines } from '@surrealdb/wasm'
+import { createWasmEngines, createWasmWorkerEngines } from '@surrealdb/wasm'
 import { Surreal } from 'surrealdb'
+
+// re-export para experimentar desde la consola (crear instancias frescas a mano)
+export { createWasmEngines, createWasmWorkerEngines, Surreal }
 
 export interface SpikeBookmark {
   url: string
@@ -18,7 +21,6 @@ export interface SpikeTagEntry {
 }
 
 export interface SpikeInput {
-  workerUrl: string
   bookmarks: SpikeBookmark[]
   tags: SpikeTagEntry[]
   searchTerm: string
@@ -40,7 +42,11 @@ export interface SpikeReport {
    tag son proyecciones reconstruibles (chrome.bookmarks / storage.sync);
    note y sus aristas serán el único dato con origen aquí. La clave canónica
    es la URL (los ids de chrome.bookmarks no son estables entre dispositivos),
-   por eso los record ids son type::thing(tabla, url). */
+   por eso los record ids son type::thing(tabla, url). Sintaxis SurrealDB 2.x:
+   @surrealdb/wasm está clavado en 2.6.1 porque el backend indxdb de la serie
+   3.0.x no comitea transacciones (verificado: mem:// funciona, indxdb:// falla
+   en página y en worker con IndexedDB nativo sano). Al subir a 3.x: migrar
+   type::thing → type::record y SEARCH → FULLTEXT ANALYZER. */
 const SCHEMA = `
 DEFINE TABLE IF NOT EXISTS bookmark SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS url ON bookmark TYPE string;
@@ -94,13 +100,8 @@ export async function runSpike(input: SpikeInput): Promise<SpikeReport> {
   const t0 = performance.now()
 
   await step(report, 'connect (worker + wasm + indxdb)', async () => {
-    db ??= new Surreal({
-      engines: createWasmWorkerEngines({
-        createWorker: () => new Worker(input.workerUrl, { type: 'module' })
-      })
-    })
+    db ??= new Surreal({ engines: createWasmWorkerEngines() })
     await db.connect('indxdb://graphmarks')
-    await db.use({ namespace: 'gm', database: 'gm' })
   })
 
   const d = db
@@ -109,7 +110,22 @@ export async function runSpike(input: SpikeInput): Promise<SpikeReport> {
     return report
   }
 
-  await step(report, 'esquema (idempotente)', () => d.query(SCHEMA))
+  await step(report, 'use ns/db', () => d.use({ namespace: 'gm', database: 'gm' }))
+
+  // sentencia a sentencia: un fallo de sintaxis no debe impedir el resto del esquema
+  await step(report, 'esquema (idempotente)', async () => {
+    const failures: string[] = []
+    for (const stmt of SCHEMA.split(';')
+      .map(s => s.trim())
+      .filter(Boolean)) {
+      try {
+        await d.query(`${stmt};`)
+      } catch (e) {
+        failures.push(`${stmt.slice(0, 60)}… → ${(e as Error).message.split('\n')[0]}`)
+      }
+    }
+    if (failures.length) throw new Error(failures.join(' | '))
+  })
 
   await step(report, `proyectar ${input.bookmarks.length} marcadores (upsert bulk)`, () =>
     d.query(

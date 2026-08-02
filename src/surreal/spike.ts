@@ -53,12 +53,7 @@ function collectInput(): SpikeInput {
       .flatMap(b => b.title.split(/\s+/))
       .find(w => w.length >= 4)
       ?.toLowerCase() ?? 'graph'
-  return {
-    workerUrl: chrome.runtime.getURL('dist/surreal-worker.js'),
-    bookmarks,
-    tags,
-    searchTerm
-  }
+  return { bookmarks, tags, searchTerm }
 }
 
 async function runAndReport(): Promise<SpikeReport | undefined> {
