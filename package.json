@@ -18,7 +18,9 @@
     "format": "biome format --write src scripts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "dev:firefox": "node scripts/build.mjs && npx web-ext@8 run --source-dir firefox",
+    "lint:firefox": "npx web-ext@8 lint --source-dir firefox"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",

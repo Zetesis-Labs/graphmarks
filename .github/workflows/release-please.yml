@@ -48,17 +48,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-      - name: Empaquetar extensión
+      - name: Empaquetar extensión (Chrome y Firefox)
         run: |
           zip -r graphmarks-${TAG}.zip \
             manifest.json newtab.html newtab.css \
             dist/newtab.js dist/background.js \
             _locales mock-data.js seed-tags.js icons LICENSE
+          (cd firefox && zip -r ../graphmarks-firefox-${TAG}.zip .)
 
-      - name: Adjuntar el zip a la release
+      - name: Adjuntar los zips a la release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" graphmarks-${TAG}.zip --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" graphmarks-${TAG}.zip graphmarks-firefox-${TAG}.zip --repo "$GITHUB_REPOSITORY"
 
       # Publicación en la Chrome Web Store: solo si los secretos están puestos.
       - name: ¿Hay credenciales de la Web Store?

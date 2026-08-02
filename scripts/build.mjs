@@ -2,8 +2,13 @@
    cargan bajo file://, y la preview standalone debe seguir funcionando) más
    los catálogos _locales/ que Chrome necesita para traducir el manifest.
    SurrealDB va aparte en dos bundles ESM (solo cargan dentro de la extensión,
-   vía import() dinámico y Worker de tipo módulo). */
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+   vía import() dinámico y Worker de tipo módulo).
+
+   El build produce además `firefox/`: la misma extensión con el manifest
+   parcheado para Firefox (event page en vez de service worker, gecko.id,
+   sin el permiso `favicon`, que es exclusivo de Chrome). Los bundles son
+   idénticos; solo cambia el manifest. Cargar con `pnpm dev:firefox`. */
+import { copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { build, context } from 'esbuild'
 
 const watch = process.argv.includes('--watch')
@@ -60,6 +65,37 @@ async function copyWasm() {
   console.log('wasm/surrealdb_bg.wasm copiado')
 }
 
+function firefoxManifest(m) {
+  const f = structuredClone(m)
+  f.background = { scripts: ['dist/background.js'] }
+  f.permissions = (f.permissions ?? []).filter(p => p !== 'favicon')
+  f.browser_specific_settings = { gecko: { id: 'graphmarks@zetesis.xyz', strict_min_version: '121.0' } }
+  return f
+}
+
+const FIREFOX_FILES = [
+  'newtab.html',
+  'newtab.css',
+  'mock-data.js',
+  'seed-tags.js',
+  'LICENSE',
+  'icons',
+  '_locales',
+  'dist/newtab.js',
+  'dist/background.js'
+]
+
+async function stageFirefox() {
+  const root = new URL('../', import.meta.url)
+  const out = new URL('../firefox/', import.meta.url)
+  await rm(out, { recursive: true, force: true })
+  await mkdir(new URL('dist/', out), { recursive: true })
+  for (const f of FIREFOX_FILES) await cp(new URL(f, root), new URL(f, out), { recursive: true })
+  const manifest = JSON.parse(await readFile(new URL('manifest.json', root), 'utf8'))
+  await writeFile(new URL('manifest.json', out), `${JSON.stringify(firefoxManifest(manifest), null, 2)}\n`)
+  console.log('firefox/ preparado (manifest parcheado)')
+}
+
 await emitLocales()
 await copyWasm()
 
@@ -71,4 +107,5 @@ if (watch) {
   console.log('esbuild en modo watch…')
 } else {
   await Promise.all(jobs.map(job => build(job)))
+  await stageFirefox()
 }

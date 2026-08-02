@@ -1,5 +1,6 @@
 import { PLUS_R, SAT_R } from './constants'
 import { customIcon } from './custom'
+import { HAS_FAVICON_API } from './env'
 import { plusPosition, satPositions, satScale } from './graph/hit'
 import { clusterColor, linkColor, nodeColor, radius } from './graph/style'
 import { convexHull, type Pt } from './lib/hull'
@@ -165,9 +166,32 @@ function glowSprite(color: string): HTMLCanvasElement {
   return s
 }
 
+/* Sin API de favicons (Firefox, preview): inicial del host dentro del círculo,
+   con el color del cluster — cero red, cero servicios de terceros. */
+function drawLetter(n: GraphNode, r: number, col: string, k: number, dashed: boolean): void {
+  const kk = Math.max(k, 1)
+  if (dashed) ctx.setLineDash([3 / kk, 2.5 / kk])
+  ctx.fillStyle = COLORS.surface
+  ctx.fill()
+  ctx.lineWidth = (dashed ? 1.5 : 1.8) / kk
+  ctx.strokeStyle = col
+  ctx.stroke()
+  ctx.setLineDash([])
+  const ch = ((n.mHost ?? '').replace(/^www\./, '')[0] ?? n.title[0] ?? '·').toUpperCase()
+  ctx.font = `700 ${r * 1.05}px system-ui, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = col
+  ctx.fillText(ch, n.x ?? 0, (n.y ?? 0) + r * 0.06)
+}
+
 function drawFavicon(n: GraphNode, r: number, col: string, dashed: boolean, k: number, rec?: FaviconRecord): void {
   const fav = rec ?? (n.url ? S.favicons.get(n.url) : undefined)
   const kk = Math.max(k, 1)
+  if (!fav?.ok && !HAS_FAVICON_API && k >= 1.15) {
+    drawLetter(n, r, col, k, dashed)
+    return
+  }
   if (dashed) ctx.setLineDash([3 / kk, 2.5 / kk])
   if (fav?.ok) {
     ctx.fillStyle = dashed ? COLORS.surface : COLORS.surface
@@ -247,7 +271,7 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
     ctx.strokeStyle = col
     ctx.stroke()
     ctx.setLineDash([])
-  } else if (wantsFavicon && (icon?.ok || (n.url && S.favicons.get(n.url)?.ok))) {
+  } else if (wantsFavicon && (icon?.ok || (n.url && S.favicons.get(n.url)?.ok) || !HAS_FAVICON_API)) {
     drawFavicon(n, r, col, false, k, icon?.ok ? icon : undefined)
   } else {
     ctx.fillStyle = col
