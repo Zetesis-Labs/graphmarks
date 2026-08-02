@@ -36,7 +36,16 @@ const jobs = [
   { ...common, entryPoints: ['src/main.ts'], outfile: 'dist/newtab.js' },
   { ...common, entryPoints: ['src/background.ts'], outfile: 'dist/background.js' },
   { ...common, format: 'esm', entryPoints: ['src/surreal/client.ts'], outfile: 'dist/surreal.js' },
-  { ...common, format: 'esm', entryPoints: ['src/surreal/worker.ts'], outfile: 'dist/surreal-worker.js' }
+  /* El agente worker se bundlea desde el paquete (importa `surrealdb` a pelo y
+     el navegador no resuelve bare specifiers). El nombre de salida no es libre:
+     createWasmWorkerEngines hace new Worker('./worker-agent.mjs') relativo a
+     dist/surreal.js. */
+  {
+    ...common,
+    format: 'esm',
+    entryPoints: ['node_modules/@surrealdb/wasm/dist/worker-agent.mjs'],
+    outfile: 'dist/worker-agent.mjs'
+  }
 ]
 
 /* El agente worker de @surrealdb/wasm resuelve el binario como
