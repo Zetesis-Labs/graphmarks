@@ -259,13 +259,7 @@ function buildGraphDomains(tree: RawBookmarkNode[]): void {
       cluster: hid,
       parentId: null
     })
-    for (const b of list) {
-      b.hubs = [hid]
-      b.cluster = hid
-      b.parentId = hid
-      addNode(b)
-      addLink(hid, b.id, 'tree')
-    }
+    attachDomainStructure(hid, dom, list)
   }
   if (loose.length) {
     addNode({
@@ -290,6 +284,95 @@ function buildGraphDomains(tree: RawBookmarkNode[]): void {
     new Set([LOOSE_DOM])
   )
   finishGraph(false)
+}
+
+/* Estructura interna de cada dominio como trie comprimido: solo se
+   materializan los puntos de ramificación reales (≥2 subdominios con peso,
+   ≥MIN_SEG marcadores compartiendo segmento de ruta); el resto cuelga directo
+   de su padre. Sin esta poda, un dominio grande fabricaría un nodo por URL. */
+
+const MIN_SEG = 3
+const MAX_PATH_DEPTH = 2
+
+function attachBm(b: GraphNode, parentId: string, cluster: string, hubs: string[]): void {
+  b.hubs = hubs
+  b.cluster = cluster
+  b.parentId = parentId
+  addNode(b)
+  addLink(parentId, b.id, 'tree')
+}
+
+function splitByPath(
+  list: GraphNode[],
+  parentId: string,
+  cluster: string,
+  hubs: string[],
+  base: string,
+  depth: number
+): void {
+  if (depth >= MAX_PATH_DEPTH || list.length < MIN_SEG) {
+    for (const b of list) attachBm(b, parentId, cluster, hubs)
+    return
+  }
+  const bySeg = new Map<string, GraphNode[]>()
+  const direct: GraphNode[] = []
+  for (const b of list) {
+    const seg = (b.mPath ?? '/').slice(base.length).split('/').filter(Boolean)[0]
+    if (!seg) direct.push(b)
+    else {
+      if (!bySeg.has(seg)) bySeg.set(seg, [])
+      bySeg.get(seg)?.push(b)
+    }
+  }
+  for (const [seg, group] of bySeg) {
+    if (group.length < MIN_SEG) {
+      direct.push(...group)
+      continue
+    }
+    const pid = `p:${parentId}|${seg}`
+    addNode({
+      id: pid,
+      type: 'folder',
+      subtype: 'path',
+      title: `/${seg}`,
+      count: group.length,
+      cluster,
+      parentId
+    })
+    addLink(parentId, pid, 'tree')
+    splitByPath(group, pid, cluster, [...hubs, pid], `${base}/${seg}`, depth + 1)
+  }
+  for (const b of direct) attachBm(b, parentId, cluster, hubs)
+}
+
+function attachDomainStructure(hid: string, dom: string, list: GraphNode[]): void {
+  const byHost = new Map<string, GraphNode[]>()
+  for (const b of list) {
+    const h = (b.mHost ?? '').replace(/^www\./, '')
+    if (!byHost.has(h)) byHost.set(h, [])
+    byHost.get(h)?.push(b)
+  }
+  const materialize = byHost.size > 1
+  for (const [h, group] of byHost) {
+    const isRoot = h === dom || h === ''
+    if (!materialize || isRoot || group.length < 2) {
+      splitByPath(group, hid, hid, [hid], '', 0)
+    } else {
+      const sid = `sd:${h}`
+      const label = h.endsWith(`.${dom}`) ? `${h.slice(0, -(dom.length + 1))}.` : h
+      addNode({
+        id: sid,
+        type: 'folder',
+        subtype: 'subdomain',
+        title: label,
+        count: group.length,
+        cluster: hid,
+        parentId: hid
+      })
+      addLink(hid, sid, 'tree')
+      splitByPath(group, sid, hid, [hid, sid], '', 0)
+    }
+  }
 }
 
 export function buildGraph(tree: RawBookmarkNode[]): void {

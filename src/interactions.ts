@@ -296,7 +296,7 @@ function nodeMenu(n: GraphNode): MenuItem[] {
       { label: t('menuCloseTab'), danger: true, action: () => n.tab && void closeTab(n.tab) }
     ]
   }
-  if (n.subtype === 'ghosthub' || n.subtype === 'domain') {
+  if (n.subtype === 'ghosthub' || n.subtype === 'domain' || n.subtype === 'subdomain' || n.subtype === 'path') {
     return [{ label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) }]
   }
   if (n.subtype === 'tag') {

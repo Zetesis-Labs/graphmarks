@@ -239,11 +239,13 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
   } else if (n.type === 'folder' && !n.subtype && icon?.ok) {
     drawFavicon(n, r, col, false, k, icon)
   } else if (n.type === 'folder' && n.subtype) {
-    // hubs de tag/dominio/fantasma: huecos, para distinguirlos de carpetas
+    // hubs sintéticos: huecos, para distinguirlos de carpetas; los niveles de
+    // jerarquía (subdominio/ruta) llevan trazo cada vez más fino y punteado
     if (n.subtype === 'ghosthub') ctx.setLineDash([4 / kk, 3 / kk])
+    if (n.subtype === 'path') ctx.setLineDash([2 / kk, 1.8 / kk])
     ctx.fillStyle = COLORS.page
     ctx.fill()
-    ctx.lineWidth = 2.5 / kk
+    ctx.lineWidth = (n.subtype === 'subdomain' ? 1.8 : n.subtype === 'path' ? 1.3 : 2.5) / kk
     ctx.strokeStyle = col
     ctx.stroke()
     ctx.setLineDash([])
@@ -366,10 +368,12 @@ function drawLabels(focus: Set<string> | null, k: number): void {
     const focused = inFocus(n.id)
     if (n.type === 'folder') {
       if (!focused && focus) continue
+      const minor = n.subtype === 'subdomain' || n.subtype === 'path'
+      if (minor && k < 0.85 && n !== S.hoverNode) continue
       ctx.globalAlpha = focused ? 1 : 0.5
-      ctx.font = `600 ${12 / k}px system-ui, sans-serif`
+      ctx.font = minor ? `${10 / k}px system-ui, sans-serif` : `600 ${12 / k}px system-ui, sans-serif`
       halo(n.x ?? 0, (n.y ?? 0) + r + 4 / k, n.title)
-      ctx.fillStyle = n === S.hoverNode || n === S.dropTarget ? COLORS.ink : COLORS.ink2
+      ctx.fillStyle = n === S.hoverNode || n === S.dropTarget ? COLORS.ink : minor ? COLORS.muted : COLORS.ink2
       ctx.fillText(n.title, n.x ?? 0, (n.y ?? 0) + r + 4 / k)
     } else {
       const show =
