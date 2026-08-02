@@ -50,6 +50,8 @@ export interface GraphNode extends SimulationNodeDatum {
   tag?: string | null
   tab?: TabInfo
   heat?: number
+  /** timestamp de nacimiento: anima la entrada del nodo y luego se limpia */
+  born?: number
 }
 
 export type LinkKind = 'tree' | 'host'

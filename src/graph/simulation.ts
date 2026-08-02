@@ -28,6 +28,9 @@ export function startSimulation(alpha: number): void {
     )
     .force('x', forceX<GraphNode>().strength(0.035))
     .force('y', forceY<GraphNode>().strength(0.045))
+    // menos fricción y decaimiento más suave: el asentamiento se siente líquido
+    .velocityDecay(0.3)
+    .alphaDecay(0.02)
     .alpha(alpha)
     .on('tick', () => app.requestDraw())
 }
