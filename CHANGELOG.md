@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.1...v0.6.2) (2026-08-02)
+
+
+### Bug Fixes
+
+* eliminar innerHTML del código y del bundle para el validador de AMO ([0d12227](https://github.com/Zetesis-Labs/graphmarks/commit/0d12227aec3da189f97fc7c3710fdf8138c27e3a))
+
 ## [0.6.1](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.0...v0.6.1) (2026-08-02)
 
 
