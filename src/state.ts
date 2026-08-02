@@ -57,6 +57,8 @@ export interface AppState {
   winList: WindowSummary[]
   heatByUrl: Map<string, number>
   savedSessions: SavedSession[]
+  customIcons: Map<string, FaviconRecord>
+  customColors: Record<string, string>
 }
 
 export const S: AppState = {
@@ -88,7 +90,9 @@ export const S: AppState = {
   currentWinId: null,
   winList: [],
   heatByUrl: new Map(),
-  savedSessions: []
+  savedSessions: [],
+  customIcons: new Map(),
+  customColors: {}
 }
 
 export const COLORS: Colors = {

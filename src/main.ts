@@ -1,5 +1,6 @@
 import { loadTree } from './bookmarks'
 import { app } from './bus'
+import { loadCustomizations } from './custom'
 import { IS_EXT } from './env'
 import { addGhostNodes, buildGraph, pruneToOpen, rebuildNeighbors } from './graph/build'
 import { simulation, startSimulation } from './graph/simulation'
@@ -164,6 +165,7 @@ async function boot(): Promise<void> {
   await loadPersistedState(new URLSearchParams(location.search))
   await resolveCurrentWindow()
   await loadSessions()
+  await loadCustomizations()
   void checkPermissions()
   S.tagsMap = await loadTags()
 

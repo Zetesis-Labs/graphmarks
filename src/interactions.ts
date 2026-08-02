@@ -5,6 +5,7 @@ import { type D3ZoomEvent, zoom as d3zoom, zoomIdentity } from 'd3-zoom'
 import { adopt, api, safeOp } from './bookmarks'
 import { app } from './bus'
 import { OTHER_CONTAINER, UNTAGGED } from './constants'
+import { customIcon, hasCustomColor, pickColor, pickIcon, removeColor, removeIcon } from './custom'
 import {
   confirmDelete,
   confirmDeleteTag,
@@ -21,7 +22,7 @@ import {
 import { members } from './graph/build'
 import { findAt, findFolderAt, findHit } from './graph/hit'
 import { simulation } from './graph/simulation'
-import { radius } from './graph/style'
+import { nodeColor, radius } from './graph/style'
 import { t } from './i18n'
 import { saveStore } from './lib/storage'
 import { short } from './lib/utils'
@@ -280,6 +281,8 @@ function nodeMenu(n: GraphNode): MenuItem[] {
       { label: t('menuRename'), action: () => promptRename(n) },
       { label: t('menuEditUrl'), action: () => promptUrl(n) },
       { label: t('menuMoveToFolder'), action: () => promptMove(n) },
+      { label: t('menuCustomIcon'), action: () => pickIcon(n) },
+      ...(customIcon(n) ? [{ label: t('menuCustomIconRemove'), action: () => void removeIcon(n) }] : []),
       ...pinItem(n),
       { sep: true },
       { label: t('menuDelete'), danger: true, action: () => confirmDelete(n) }
@@ -320,6 +323,11 @@ function nodeMenu(n: GraphNode): MenuItem[] {
     { label: t('menuNewSubfolder'), action: () => promptNewFolder(n) },
     { label: t('menuNewBookmarkHere'), action: () => promptNewBookmark(n) },
     { label: t('menuMoveToFolder'), action: () => promptMove(n) },
+    { sep: true },
+    { label: t('menuFolderColor'), action: () => pickColor(n, nodeColor(n)) },
+    ...(hasCustomColor(n) ? [{ label: t('menuFolderColorRemove'), action: () => void removeColor(n) }] : []),
+    { label: t('menuCustomIcon'), action: () => pickIcon(n) },
+    ...(customIcon(n) ? [{ label: t('menuCustomIconRemove'), action: () => void removeIcon(n) }] : []),
     ...pinItem(n),
     { sep: true },
     { label: t('menuDeleteFolder', n.count ?? 0), danger: true, action: () => confirmDelete(n) }
