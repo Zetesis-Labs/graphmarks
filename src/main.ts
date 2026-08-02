@@ -75,6 +75,7 @@ export async function rebuild(fit: boolean): Promise<void> {
   for (const n of S.nodes) {
     const p = prevPos.get(n.id)
     if (p) Object.assign(n, p)
+    else n.born = performance.now()
   }
   for (const n of S.nodes) {
     if (n.x === undefined && n.parentId) {
