@@ -12,7 +12,6 @@ import { requestDraw } from './render'
 import { applySearch, clearSearch, initSearch } from './search'
 import { initSessionsUi, loadSessions } from './sessions'
 import { loadPersistedState, readColors, S } from './state'
-import { scheduleSurrealSpike } from './surreal/spike'
 import {
   checkPermissions,
   clearBadgeWarn,
@@ -184,7 +183,6 @@ async function boot(): Promise<void> {
 
   buildViews()
   await rebuild(true)
-  scheduleSurrealSpike()
 
   // primera vez: sembrar etiquetas de ejemplo para las URLs presentes
   const urls = new Set<string>()
