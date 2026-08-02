@@ -42,6 +42,8 @@ export function linkColor(l: GraphLink): string {
 }
 
 export function radius(n: GraphNode): number {
+  if (n.subtype === 'subdomain') return Math.min(5.5 + Math.sqrt(n.count ?? 0) * 1.1, 13)
+  if (n.subtype === 'path') return Math.min(4.5 + Math.sqrt(n.count ?? 0) * 0.9, 10)
   if (n.type === 'folder') return Math.min(9 + Math.sqrt(n.count ?? 0) * 1.7, 26)
   if (n.type === 'bm') return 3.9 + (n.heat ?? 0.35) * 2.8
   return 5

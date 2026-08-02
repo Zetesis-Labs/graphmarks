@@ -3,7 +3,7 @@ import type { SimulationNodeDatum } from 'd3-force'
 export type ViewMode = 'folders' | 'tags' | 'domains'
 
 export type NodeType = 'bm' | 'folder' | 'ghost'
-export type NodeSubtype = 'tag' | 'domain' | 'ghosthub'
+export type NodeSubtype = 'tag' | 'domain' | 'ghosthub' | 'subdomain' | 'path'
 
 /** Pestaña abierta normalizada (real o simulada en la preview). */
 export interface TabInfo {

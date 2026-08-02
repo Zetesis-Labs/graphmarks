@@ -6,7 +6,25 @@ import { radius } from './style'
 
 export let simulation: Simulation<GraphNode, GraphLink> | null = null
 
-const targetIsFolder = (l: GraphLink): boolean => typeof l.target === 'object' && l.target.type === 'folder'
+const targetFolder = (l: GraphLink): GraphNode | null =>
+  typeof l.target === 'object' && l.target.type === 'folder' ? l.target : null
+
+/* Los niveles de jerarquía (subdominio/ruta) se aprietan contra su padre. */
+function linkDistance(l: GraphLink): number {
+  if (l.type === 'host') return 130
+  const f = targetFolder(l)
+  if (!f) return 36
+  if (f.subtype === 'path') return 55
+  if (f.subtype === 'subdomain') return 75
+  return 110
+}
+
+function chargeOf(d: GraphNode): number {
+  if (d.type !== 'folder') return -38
+  if (d.subtype === 'path') return -90
+  if (d.subtype === 'subdomain') return -160
+  return -340
+}
 
 export function startSimulation(alpha: number): void {
   simulation?.stop()
@@ -15,13 +33,10 @@ export function startSimulation(alpha: number): void {
       'link',
       forceLink<GraphNode, GraphLink>(S.links)
         .id(d => d.id)
-        .distance(l => (l.type === 'host' ? 130 : targetIsFolder(l) ? 110 : 36))
-        .strength(l => (l.type === 'host' ? 0.04 : targetIsFolder(l) ? 0.55 : 0.45))
+        .distance(linkDistance)
+        .strength(l => (l.type === 'host' ? 0.04 : targetFolder(l) ? 0.55 : 0.45))
     )
-    .force(
-      'charge',
-      forceManyBody<GraphNode>().strength(d => (d.type === 'folder' ? -340 : -38))
-    )
+    .force('charge', forceManyBody<GraphNode>().strength(chargeOf))
     .force(
       'collide',
       forceCollide<GraphNode>(d => radius(d) + 4)
