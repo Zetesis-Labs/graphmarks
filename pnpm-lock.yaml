@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@surrealdb/wasm':
-        specifier: ^2.6.1
+        specifier: 2.6.1
         version: 2.6.1(surrealdb@2.0.8(tslib@2.8.1)(typescript@5.7.3))
       d3-drag:
         specifier: ^3.0.0
