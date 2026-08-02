@@ -1,6 +1,6 @@
 import { app } from '../bus'
 import { LOOSE_DOM, MAX_SLOTS, UNTAGGED } from '../constants'
-import { IS_EXT } from '../env'
+import { HAS_FAVICON_API, IS_EXT } from '../env'
 import { t } from '../i18n'
 import { domainKey, normPath } from '../lib/utils'
 import { S } from '../state'
@@ -382,7 +382,7 @@ export function members(hub: GraphNode): GraphNode[] {
 }
 
 export function loadFavicon(url: string): void {
-  if (S.favicons.has(url)) return
+  if (!HAS_FAVICON_API || S.favicons.has(url)) return
   const img = new Image()
   const rec = { img, ok: false }
   S.favicons.set(url, rec)

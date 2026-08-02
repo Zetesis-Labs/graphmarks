@@ -3,6 +3,8 @@ export const IS_EXT = typeof chrome !== 'undefined' && !!chrome.bookmarks
 
 export const HAS_STORAGE = IS_EXT && !!chrome.storage?.local
 export const HAS_SYNC = IS_EXT && !!chrome.storage?.sync
+/** El endpoint /_favicon/ es exclusivo de Chrome; en Firefox el permiso ni existe. */
+export const HAS_FAVICON_API = IS_EXT && !!chrome.runtime.getManifest?.().permissions?.includes('favicon')
 
 /** Pestañas simuladas para la vista previa fuera de Chrome (mutable: closeTab). */
 export const MOCK_TABS = [
