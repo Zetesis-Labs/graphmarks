@@ -27,6 +27,9 @@
     "storage",
     "history"
   ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "optional_permissions": [
     "tabGroups"
   ],

@@ -25,6 +25,7 @@ import { radius } from './graph/style'
 import { t } from './i18n'
 import { saveStore } from './lib/storage'
 import { short } from './lib/utils'
+import { cachedThumb, loadThumb } from './preview'
 import { pinsOfView, S, saveLayoutSoon } from './state'
 import { activateTab, closeTab } from './tabs'
 import { setTags, tagsOf } from './tags'
@@ -217,6 +218,30 @@ function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof find
   set('.u', sub)
   const tagsEl = set('.tags', tagLine)
   if (tagsEl) tagsEl.style.display = tagLine ? '' : 'none'
+
+  // previsualización: miniatura de la pestaña abierta bajo el cursor
+  const purl =
+    aux?.type === 'sat'
+      ? aux.tab.url
+      : n.type === 'ghost'
+        ? n.url
+        : n.type === 'bm'
+          ? S.openTabs.get(n.id)?.[0]?.url
+          : undefined
+  if (purl) {
+    const prependShot = (img: string): void => {
+      const shot = document.createElement('img')
+      shot.className = 'shot'
+      shot.src = img
+      tooltip.prepend(shot)
+    }
+    const img = cachedThumb(purl)
+    if (img) prependShot(img)
+    else
+      loadThumb(purl, im => {
+        if (S.hoverNode === n && !tooltip.hidden) prependShot(im)
+      })
+  }
 
   const pad = 14
   let x = ev.clientX + pad
