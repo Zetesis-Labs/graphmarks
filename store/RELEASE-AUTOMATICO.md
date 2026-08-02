@@ -18,13 +18,24 @@ necesita cuatro secretos. Esto se hace **una vez**.
 
 ## 2. Conseguir el refresh token
 
-Abre esta URL en el navegador (sustituye `TU_CLIENT_ID`) y acepta:
+> El flujo OOB (`urn:ietf:wg:oauth:2.0:oob`) que circula por muchas guías está
+> **muerto desde 2023**; el vigente para clientes de escritorio es loopback.
+
+**Camino fácil** — la herramienta de fregante hace el baile entero y te
+imprime los tres valores:
+
+```bash
+npx chrome-webstore-upload-keys
+```
+
+**Camino manual (loopback)** — abre esta URL (sustituye `TU_CLIENT_ID`) y acepta:
 
 ```
-https://accounts.google.com/o/oauth2/auth?response_type=code&scope=https://www.googleapis.com/auth/chromewebstore&client_id=TU_CLIENT_ID&redirect_uri=urn:ietf:wg:oauth:2.0:oob
+https://accounts.google.com/o/oauth2/auth?response_type=code&scope=https://www.googleapis.com/auth/chromewebstore&client_id=TU_CLIENT_ID&redirect_uri=http://localhost:8818
 ```
 
-Google te muestra un **código**. Cámbialo por el refresh token:
+El navegador acabará en `http://localhost:8818/?code=…` (dará «conexión
+rechazada»: da igual, el código va en la barra de direcciones). Cámbialo:
 
 ```bash
 curl -s https://oauth2.googleapis.com/token \
@@ -32,7 +43,7 @@ curl -s https://oauth2.googleapis.com/token \
   -d client_secret=TU_CLIENT_SECRET \
   -d code=EL_CODIGO \
   -d grant_type=authorization_code \
-  -d redirect_uri=urn:ietf:wg:oauth:2.0:oob
+  -d redirect_uri=http://localhost:8818
 ```
 
 De la respuesta guarda `refresh_token` (no caduca mientras la app OAuth siga

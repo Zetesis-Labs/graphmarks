@@ -20,6 +20,11 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: El tag debe coincidir con la versión del manifest
+        run: |
+          v="v$(jq -r .version manifest.json)"
+          test "$v" = "$GITHUB_REF_NAME" || { echo "manifest.json es $v pero el tag es $GITHUB_REF_NAME"; exit 1; }
+
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
