@@ -28,13 +28,26 @@ async function emitLocales() {
   console.log(`_locales generados: ${LOCALES.join(', ')}`)
 }
 
+/* selection.html() de d3-selection nunca se usa, pero vive en el prototype y
+   no se tree-shakea; su innerHTML hace saltar al validador de AMO. Stub. */
+const stubD3Html = {
+  name: 'stub-d3-html',
+  setup(b) {
+    b.onLoad({ filter: /d3-selection\/src\/selection\/html\.js$/ }, () => ({
+      contents: 'export default function html() { return this }',
+      loader: 'js'
+    }))
+  }
+}
+
 /** @type {import('esbuild').BuildOptions} */
 const common = {
   bundle: true,
   format: 'iife',
   target: 'chrome120',
   sourcemap: true,
-  logLevel: 'info'
+  logLevel: 'info',
+  plugins: [stubD3Html]
 }
 
 const jobs = [

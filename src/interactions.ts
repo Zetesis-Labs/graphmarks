@@ -189,7 +189,6 @@ function pinItem(n: GraphNode): MenuItem[] {
 
 function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof findHit>['aux']): void {
   tooltip.hidden = false
-  tooltip.innerHTML = '<span class="t"></span><span class="u"></span><span class="tags"></span>'
   let title = n.title
   let sub = ''
   let tagLine = ''
@@ -209,15 +208,15 @@ function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof find
   } else {
     sub = t('tooltipBookmarks', n.count ?? 0)
   }
-  const set = (sel: string, text: string) => {
-    const el = tooltip.querySelector<HTMLElement>(sel)
-    if (el) el.textContent = text
+  const span = (cls: string, text: string): HTMLSpanElement => {
+    const el = document.createElement('span')
+    el.className = cls
+    el.textContent = text
     return el
   }
-  set('.t', title)
-  set('.u', sub)
-  const tagsEl = set('.tags', tagLine)
-  if (tagsEl) tagsEl.style.display = tagLine ? '' : 'none'
+  const tagsEl = span('tags', tagLine)
+  tagsEl.style.display = tagLine ? '' : 'none'
+  tooltip.replaceChildren(span('t', title), span('u', sub), tagsEl)
 
   const pad = 14
   let x = ev.clientX + pad

@@ -39,11 +39,11 @@ function renderEmptyState(hasBookmarks: boolean): void {
   if (hasBookmarks) return
   const title = S.onlyOpen ? t('emptyNoOpenTitle') : t('emptyNoBookmarksTitle')
   const body = S.onlyOpen ? t('emptyNoOpenBody') : t('emptyNoBookmarksBody')
-  emptyEl.innerHTML = '<h2></h2><p></p>'
-  const h = emptyEl.querySelector('h2')
-  const p = emptyEl.querySelector('p')
-  if (h) h.textContent = title
-  if (p) p.textContent = body
+  const h = document.createElement('h2')
+  h.textContent = title
+  const p = document.createElement('p')
+  p.textContent = body
+  emptyEl.replaceChildren(h, p)
 }
 
 /**

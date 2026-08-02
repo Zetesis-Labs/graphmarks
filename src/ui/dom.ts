@@ -29,9 +29,11 @@ export const sessionsEl = el<HTMLButtonElement>('sessions')
 
 export function showFatal(msg: string): void {
   emptyEl.hidden = false
-  emptyEl.innerHTML = `<h2>${t('fatalTitle')}</h2><p></p>`
-  const p = emptyEl.querySelector('p')
-  if (p) p.textContent = msg
+  const h = document.createElement('h2')
+  h.textContent = t('fatalTitle')
+  const p = document.createElement('p')
+  p.textContent = msg
+  emptyEl.replaceChildren(h, p)
 }
 
 export function installErrorSurface(): void {
