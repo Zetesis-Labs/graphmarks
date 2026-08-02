@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/Zetesis-Labs/graphmarks/compare/v0.5.0...v0.6.0) (2026-08-02)
+
+
+### Features
+
+* build multi-navegador con target de Firefox ([532bf8c](https://github.com/Zetesis-Labs/graphmarks/commit/532bf8c69a76c64d891dfb0530ab61fa8f0b00a3))
+* jerarquía de subdominios y rutas en la vista de dominios ([7ce5c5d](https://github.com/Zetesis-Labs/graphmarks/commit/7ce5c5d02f0ce766e25d4fe5496b500577efd8b7))
+
 ## [0.5.0](https://github.com/Zetesis-Labs/graphmarks/compare/v0.4.0...v0.5.0) (2026-08-02)
 
 
