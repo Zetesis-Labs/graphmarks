@@ -259,13 +259,6 @@ html, body {
   color: var(--text-secondary);
   font-size: 11.5px;
 }
-#tooltip .shot {
-  display: block;
-  width: 300px;
-  border-radius: 6px;
-  margin-bottom: 7px;
-  border: 1px solid var(--border);
-}
 
 #empty[hidden] { display: none; }
 #empty {
