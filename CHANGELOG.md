@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.0...v0.6.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* declarar data_collection_permissions en el manifest de Firefox ([f05f770](https://github.com/Zetesis-Labs/graphmarks/commit/f05f7709b802d333d3dbf5dc8ba1bd02b7053970))
+
 ## [0.6.0](https://github.com/Zetesis-Labs/graphmarks/compare/v0.5.0...v0.6.0) (2026-08-02)
 
 
