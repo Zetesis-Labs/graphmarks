@@ -69,7 +69,14 @@ function firefoxManifest(m) {
   const f = structuredClone(m)
   f.background = { scripts: ['dist/background.js'] }
   f.permissions = (f.permissions ?? []).filter(p => p !== 'favicon')
-  f.browser_specific_settings = { gecko: { id: 'graphmarks@zetesis.xyz', strict_min_version: '121.0' } }
+  f.browser_specific_settings = {
+    gecko: {
+      id: 'graphmarks@zetesis.xyz',
+      strict_min_version: '121.0',
+      // obligatorio en AMO desde 2025: graphmarks no recoge ni transmite nada
+      data_collection_permissions: { required: ['none'] }
+    }
+  }
   return f
 }
 
