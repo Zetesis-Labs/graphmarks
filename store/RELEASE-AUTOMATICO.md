@@ -1,8 +1,10 @@
 # Publicar las siguientes versiones sin tocar el dashboard
 
-La primera subida es manual. A partir de ahí, el workflow `release.yml` puede
-subir y publicar solo cuando haces `git tag vX.Y.Z && git push --tags`, pero
-necesita cuatro secretos. Esto se hace **una vez**.
+La primera subida es manual. A partir de ahí el ciclo lo lleva **release-please**
+(conventional commits → PR de versión → al mergearla: tag, release de GitHub
+con el zip y, si los secretos existen, publicación en la Web Store). Los
+secretos solo hacen falta para el último paso y se configuran **una vez**;
+sin ellos, el zip queda en la release y se arrastra al dashboard a mano.
 
 ## 1. Habilitar la API
 
@@ -60,14 +62,11 @@ gh secret set CWS_EXTENSION_ID  --repo Zetesis-Labs/graphmarks   # el ID de la U
 
 ## 4. Publicar
 
-```bash
-# sube la versión en package.json y manifest.json, commitea, y luego:
-git tag v0.4.0 && git push --tags
-```
+Nada de tags ni bumps a mano: con cada merge a `main` de commits `feat:`/`fix:`,
+release-please abre (o actualiza) una **PR de release** con la versión y el
+CHANGELOG. Publicar es **mergear esa PR**: el workflow crea el tag y la release,
+construye, adjunta el zip y —si los secretos están puestos— sube y publica en
+la Web Store. Cada versión pasa por la revisión de Google (horas a días).
 
-El workflow construye, empaqueta, crea la release de GitHub con el zip y
-—si los secretos están puestos— sube el paquete a la Web Store y lo publica.
-Cada versión pasa por la revisión de Google (de unas horas a unos días).
-
-> Si los secretos no existen, el paso se omite sin fallar: solo se crea la
-> release de GitHub.
+> Si los secretos no existen, el paso de la Store se omite sin fallar: el zip
+> queda en la release de GitHub para arrastrarlo al dashboard a mano.

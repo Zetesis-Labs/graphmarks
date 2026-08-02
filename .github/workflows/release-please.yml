@@ -1,17 +1,42 @@
-name: Release
+# Release automático por conventional commits: release-please abre una PR de
+# versión; al mergearla crea tag + release, y este MISMO workflow construye y
+# adjunta el zip (un tag creado con GITHUB_TOKEN no dispararía otro workflow,
+# así que todo vive aquí y no hace falta ningún PAT).
+name: Release Please
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
-  zip:
+  release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: rp
+
+  empaquetar:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: El tag debe coincidir con la versión del manifest
+        run: |
+          v="v$(jq -r .version manifest.json)"
+          test "$v" = "$TAG" || { echo "manifest.json es $v pero el tag es $TAG"; exit 1; }
 
       - uses: pnpm/action-setup@v4
 
@@ -20,30 +45,22 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: El tag debe coincidir con la versión del manifest
-        run: |
-          v="v$(jq -r .version manifest.json)"
-          test "$v" = "$GITHUB_REF_NAME" || { echo "manifest.json es $v pero el tag es $GITHUB_REF_NAME"; exit 1; }
-
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
       - name: Empaquetar extensión
         run: |
-          zip -r graphmarks-${GITHUB_REF_NAME}.zip \
+          zip -r graphmarks-${TAG}.zip \
             manifest.json newtab.html newtab.css \
             dist/newtab.js dist/background.js \
             _locales mock-data.js seed-tags.js icons LICENSE
 
-      - name: Crear release con el zip
-        uses: softprops/action-gh-release@v2
-        with:
-          files: graphmarks-*.zip
-          generate_release_notes: true
+      - name: Adjuntar el zip a la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" graphmarks-${TAG}.zip --repo "$GITHUB_REPOSITORY"
 
       # Publicación en la Chrome Web Store: solo si los secretos están puestos.
-      # Requiere un alta manual previa (cuenta de desarrollador + primera subida)
-      # y credenciales OAuth con la Chrome Web Store API habilitada.
       - name: ¿Hay credenciales de la Web Store?
         id: cws
         run: |
@@ -71,7 +88,7 @@ jobs:
           echo "Subiendo el paquete…"
           curl -sf -X PUT \
             -H "Authorization: Bearer $TOKEN" -H "x-goog-api-version: 2" \
-            -T graphmarks-${GITHUB_REF_NAME}.zip \
+            -T graphmarks-${TAG}.zip \
             "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXT_ID" | tee upload.json
           python3 -c 'import json;d=json.load(open("upload.json"));st=d.get("uploadState");print("estado:",st);raise SystemExit(0 if st in ("SUCCESS","IN_PROGRESS") else 1)'
 
