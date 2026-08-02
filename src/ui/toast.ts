@@ -5,7 +5,7 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 /** Aviso efímero; con `actionFn` añade un botón (deshacer, conceder…). */
 export function toast(msg: string, actionFn?: (() => void) | null, btnLabel = t('toastUndo')): void {
-  toastEl.innerHTML = ''
+  toastEl.replaceChildren()
   const span = document.createElement('span')
   span.textContent = msg
   toastEl.appendChild(span)

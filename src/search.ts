@@ -81,7 +81,7 @@ function buildResults(q: string): GraphNode[] {
 }
 
 function renderResults(): void {
-  resultsEl.innerHTML = ''
+  resultsEl.replaceChildren()
   resultsEl.hidden = !searchItems.length
   searchItems.forEach((n, i) => {
     const li = document.createElement('li')

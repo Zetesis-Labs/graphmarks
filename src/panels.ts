@@ -17,7 +17,7 @@ function clusterDotColor(c: Cluster): string {
 }
 
 export function buildViews(): void {
-  viewsEl.innerHTML = ''
+  viewsEl.replaceChildren()
   for (const [mode, key] of Object.entries(VIEW_KEYS) as Array<[ViewMode, 'viewFolders']>) {
     const b = document.createElement('button')
     b.textContent = t(key)
@@ -37,7 +37,7 @@ export function buildViews(): void {
 }
 
 export function buildLegend(): void {
-  legendEl.innerHTML = ''
+  legendEl.replaceChildren()
   const all = document.createElement('button')
   all.className = 'chip'
   all.textContent = t('frameAll')
@@ -79,7 +79,7 @@ export function buildLegend(): void {
 
 /** Vista de lista accesible: los mismos datos sin canvas. */
 export function buildList(): void {
-  listPanel.innerHTML = ''
+  listPanel.replaceChildren()
   for (const c of S.clusters) {
     const hub = S.byId.get(c.id)
     if (!hub) continue

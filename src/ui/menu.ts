@@ -6,7 +6,7 @@ export function hideMenu(): void {
 }
 
 export function showMenu(x: number, y: number, items: MenuItem[]): void {
-  menuEl.innerHTML = ''
+  menuEl.replaceChildren()
   for (const it of items) {
     if (it.sep) {
       const hr = document.createElement('div')
