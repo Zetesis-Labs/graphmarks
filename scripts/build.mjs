@@ -84,7 +84,9 @@ function firefoxManifest(m) {
   f.permissions = (f.permissions ?? []).filter(p => p !== 'favicon')
   f.browser_specific_settings = {
     gecko: {
-      id: 'graphmarks@zetesis.xyz',
+      // ojo: AMO quema las ids de complementos borrados para siempre;
+      // graphmarks@zetesis.xyz quedó inutilizada al borrar el alta inicial
+      id: 'graphmarks-newtab@zetesis.xyz',
       // 140 = ESR 2025: data_collection_permissions (140) y tabGroups (139) quedan cubiertos
       strict_min_version: '140.0',
       // obligatorio en AMO desde 2025: graphmarks no recoge ni transmite nada
