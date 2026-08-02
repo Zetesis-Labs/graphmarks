@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.2...v0.6.3) (2026-08-02)
+
+
+### Bug Fixes
+
+* subir strict_min_version de Firefox a 140 ([79d5dbc](https://github.com/Zetesis-Labs/graphmarks/commit/79d5dbc5b194a17c36dd95d0c7e0e3a8b561f01a))
+
 ## [0.6.2](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.1...v0.6.2) (2026-08-02)
 
 
