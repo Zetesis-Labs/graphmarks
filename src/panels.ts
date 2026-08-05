@@ -2,7 +2,7 @@ import { app } from './bus'
 import { SERIES_VARS, VIEW_KEYS } from './constants'
 import { members } from './graph/build'
 import { t } from './i18n'
-import { zoomToNodes } from './interactions'
+import { closeSubgraph, zoomToNodes } from './interactions'
 import { saveStore } from './lib/storage'
 import { S } from './state'
 import type { Cluster, ViewMode } from './types'
@@ -25,6 +25,8 @@ export function buildViews(): void {
     b.addEventListener('click', () => {
       void (async () => {
         if (mode === S.viewMode) return
+        S.activeSubgraph = null
+        S.expandedFolders.clear()
         S.viewMode = mode
         await saveStore('view', mode)
         buildViews()
@@ -40,9 +42,12 @@ export function buildLegend(): void {
   legendEl.replaceChildren()
   const all = document.createElement('button')
   all.className = 'chip'
-  all.textContent = t('frameAll')
-  all.title = t('frameAllTitle')
-  all.addEventListener('click', () => zoomToNodes(S.nodes, 80))
+  all.textContent = S.activeSubgraph ? t('subgraphBack') : t('frameAll')
+  all.title = S.activeSubgraph ? t('subgraphBackTitle') : t('frameAllTitle')
+  all.addEventListener('click', () => {
+    if (S.activeSubgraph) closeSubgraph()
+    else zoomToNodes(S.nodes, 80)
+  })
   legendEl.appendChild(all)
 
   for (const c of S.clusters) {

@@ -22,6 +22,7 @@ export const OTHER_CONTAINER = '2'
 
 export const SAT_R = 3.6
 export const PLUS_R = 5
+export const BACK_R = 7
 export const MAX_SATS = 6
 
 export const TAG_BUCKETS = 12

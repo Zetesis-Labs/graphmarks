@@ -1,4 +1,4 @@
-import { MAX_SATS, PLUS_R, SAT_R } from '../constants'
+import { BACK_R, MAX_SATS, PLUS_R, SAT_R } from '../constants'
 import { S } from '../state'
 import type { GraphNode, HitResult, TabInfo } from '../types'
 import { simulation } from './simulation'
@@ -31,6 +31,13 @@ export function plusPosition(n: GraphNode): { x: number; y: number } {
   return { x: (n.x ?? 0) + dist * Math.cos(a), y: (n.y ?? 0) + dist * Math.sin(a) }
 }
 
+/** Botón flotante de regreso, anclado arriba a la izquierda de la raíz. */
+export function backPosition(n: GraphNode): { x: number; y: number } {
+  const dist = radius(n) + 15 * satScale()
+  const a = (-135 * Math.PI) / 180
+  return { x: (n.x ?? 0) + dist * Math.cos(a), y: (n.y ?? 0) + dist * Math.sin(a) }
+}
+
 export function findAt(px: number, py: number): GraphNode | null {
   const [x, y] = S.tf.invert([px, py])
   const n = simulation?.find(x, y, 30 / S.tf.k)
@@ -42,6 +49,15 @@ export function findAt(px: number, py: number): GraphNode | null {
 /** Nodo o elemento auxiliar (satélite de pestaña / botón «+») bajo el puntero. */
 export function findHit(px: number, py: number): HitResult {
   const [x, y] = S.tf.invert([px, py])
+  if (S.activeSubgraph) {
+    const root = S.byId.get(S.activeSubgraph)
+    if (root) {
+      const p = backPosition(root)
+      if (Math.hypot(p.x - x, p.y - y) <= BACK_R * satScale() + 4 / S.tf.k) {
+        return { node: root, aux: { type: 'back' } }
+      }
+    }
+  }
   for (const id of S.openTabs.keys()) {
     const n = S.byId.get(id)
     if (!n) continue

@@ -15,7 +15,8 @@ export function exportData(): void {
     exported: new Date().toISOString(),
     tags: S.tagsMap,
     layout: S.pinned,
-    sessions: S.savedSessions
+    sessions: S.savedSessions,
+    folderPrefs: S.folderPrefs
   }
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })
   const a = document.createElement('a')
@@ -42,6 +43,10 @@ export function importData(): void {
         if (data.layout) {
           S.pinned = data.layout
           await saveStore('layout', S.pinned)
+        }
+        if (data.folderPrefs) {
+          S.folderPrefs = { ...S.folderPrefs, ...data.folderPrefs }
+          await saveStore('folderPrefs', S.folderPrefs)
         }
         if (Array.isArray(data.sessions)) {
           const known = new Set(S.savedSessions.map(s => s.id))

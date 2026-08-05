@@ -4,6 +4,7 @@ import { loadStore, saveStore } from './lib/storage'
 import type {
   Cluster,
   Colors,
+  FolderPreferences,
   GraphLink,
   GraphNode,
   HitAux,
@@ -59,6 +60,11 @@ export interface AppState {
   savedSessions: SavedSession[]
   customIcons: Map<string, FaviconRecord>
   customColors: Record<string, string>
+  folderPrefs: FolderPreferences
+  /** Subgrafo abierto durante esta pestaña; no se restaura al abrir otra. */
+  activeSubgraph: string | null
+  /** Carpetas plegadas por defecto que el usuario ha abierto temporalmente. */
+  expandedFolders: Set<string>
 }
 
 export const S: AppState = {
@@ -92,7 +98,10 @@ export const S: AppState = {
   heatByUrl: new Map(),
   savedSessions: [],
   customIcons: new Map(),
-  customColors: {}
+  customColors: {},
+  folderPrefs: {},
+  activeSubgraph: null,
+  expandedFolders: new Set()
 }
 
 export const COLORS: Colors = {
@@ -140,5 +149,6 @@ export async function loadPersistedState(params: URLSearchParams): Promise<void>
   S.showGhosts = await loadStore('ghosts', true)
   S.winFilter = await loadStore<WinFilter>('winFilter', 'all')
   S.pinned = await loadStore<PinnedLayouts>('layout', {})
+  S.folderPrefs = await loadStore<FolderPreferences>('folderPrefs', {})
   S.savedSessions = await loadStore<SavedSession[]>('sessions', [])
 }

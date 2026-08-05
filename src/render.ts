@@ -1,7 +1,7 @@
-import { PLUS_R, SAT_R } from './constants'
+import { BACK_R, PLUS_R, SAT_R } from './constants'
 import { customIcon } from './custom'
 import { HAS_FAVICON_API } from './env'
-import { plusPosition, satPositions, satScale } from './graph/hit'
+import { backPosition, plusPosition, satPositions, satScale } from './graph/hit'
 import { clusterColor, linkColor, nodeColor, radius } from './graph/style'
 import { convexHull, type Pt } from './lib/hull'
 import { strHash } from './lib/utils'
@@ -289,6 +289,48 @@ function drawFavicon(n: GraphNode, r: number, col: string, dashed: boolean, k: n
 
 let entranceActive = false
 
+function drawFolderPresentation(n: GraphNode, r: number, k: number, col: string): void {
+  if (n.type !== 'folder' || n.subtype || !n.raw) return
+  const pref = S.folderPrefs[n.raw]
+  const kk = Math.max(k, 1)
+
+  // El doble anillo identifica una carpeta que abre un dashboard propio.
+  if (pref?.subgraph) {
+    ctx.beginPath()
+    ctx.arc(n.x ?? 0, n.y ?? 0, r + 5 / kk, 0, Math.PI * 2)
+    ctx.lineWidth = 2.2 / kk
+    ctx.strokeStyle = col
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.setLineDash([2.5 / kk, 3 / kk])
+    ctx.arc(n.x ?? 0, n.y ?? 0, r + 9 / kk, 0, Math.PI * 2)
+    ctx.lineWidth = 1.2 / kk
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  // El badge «+» indica que la rama solo está mostrando pestañas abiertas.
+  if (n.collapsed) {
+    const x = (n.x ?? 0) + r * 0.78
+    const y = (n.y ?? 0) + r * 0.78
+    const br = 4.5 / kk
+    ctx.beginPath()
+    ctx.arc(x, y, br, 0, Math.PI * 2)
+    ctx.fillStyle = COLORS.surface
+    ctx.fill()
+    ctx.lineWidth = 1.4 / kk
+    ctx.strokeStyle = col
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(x - 2.1 / kk, y)
+    ctx.lineTo(x + 2.1 / kk, y)
+    ctx.moveTo(x, y - 2.1 / kk)
+    ctx.lineTo(x, y + 2.1 / kk)
+    ctx.lineWidth = 1.2 / kk
+    ctx.stroke()
+  }
+}
+
 function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): void {
   let r = radius(n)
   const kk = Math.max(k, 1)
@@ -349,6 +391,8 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
     ctx.strokeStyle = COLORS.page
     ctx.stroke()
   }
+
+  drawFolderPresentation(n, r, k, col)
 
   // anillo indicador de pestaña abierta
   if (S.openTabs.has(n.id)) {
@@ -531,6 +575,37 @@ function drawSatellites(focus: Set<string> | null, vp: Viewport): void {
   }
 }
 
+function drawSubgraphBack(vp: Viewport): void {
+  if (!S.activeSubgraph) return
+  const root = S.byId.get(S.activeSubgraph)
+  if (!root || !visibleNode(root, vp)) return
+  const p = backPosition(root)
+  const ss = satScale()
+  const r = BACK_R * ss
+  const col = nodeColor(root)
+
+  ctx.globalAlpha = 1
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+  ctx.fillStyle = COLORS.surface
+  ctx.fill()
+  ctx.lineWidth = 1.5 * ss
+  ctx.strokeStyle = col
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.moveTo(p.x + 2.5 * ss, p.y)
+  ctx.lineTo(p.x - 2.5 * ss, p.y)
+  ctx.moveTo(p.x - 2.5 * ss, p.y)
+  ctx.lineTo(p.x - 0.3 * ss, p.y - 2.2 * ss)
+  ctx.moveTo(p.x - 2.5 * ss, p.y)
+  ctx.lineTo(p.x - 0.3 * ss, p.y + 2.2 * ss)
+  ctx.lineWidth = 1.5 * ss
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = COLORS.ink
+  ctx.stroke()
+}
+
 export function draw(): void {
   const dpr = window.devicePixelRatio || 1
   const w = canvas.clientWidth
@@ -583,6 +658,7 @@ export function draw(): void {
 
   drawLabels(focus, k, vp)
   drawSatellites(focus, vp)
+  drawSubgraphBack(vp)
   drawParticles(focus, k, now, vp)
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
