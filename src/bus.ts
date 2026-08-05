@@ -13,5 +13,6 @@ export const app = {
   zoomToNodes: (_list: GraphNode[], _pad?: number, _duration?: number): void => {},
   applySearch: (_q: string): void => {},
   clearSearch: (): void => {},
-  startGuide: (): void => {}
+  startGuide: (): void => {},
+  switchView: (_mode: string): void => {}
 }

@@ -1,6 +1,14 @@
 import type { SimulationNodeDatum } from 'd3-force'
 
-export type ViewMode = 'folders' | 'tags' | 'domains' | 'history'
+export type BuiltinViewMode = 'folders' | 'tags' | 'domains' | 'history'
+export type ViewMode = BuiltinViewMode | string
+
+export interface CustomViewSpec {
+  id: string
+  name: string
+  icon: string
+  query: string
+}
 
 export type NodeType = 'bm' | 'folder' | 'ghost'
 export type NodeSubtype = 'tag' | 'domain' | 'ghosthub' | 'subdomain' | 'path'

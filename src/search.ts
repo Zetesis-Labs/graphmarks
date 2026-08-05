@@ -14,7 +14,7 @@ import { activateTab, toggleOnlyOpen } from './tabs'
 import { exportData, importData } from './transfer'
 import type { GraphNode, ViewMode } from './types'
 import { canvas, dlg, resultsEl, searchBox } from './ui/dom'
-import { strategies } from './view-strategy'
+import { getStrategy } from './view-strategy'
 
 const MAX_RESULTS = 12
 const DWELL_MS = 3000
@@ -127,14 +127,15 @@ export function setupDefaultCommands(): void {
       action: () => app.startGuide()
     }
   ])
+  app.switchView = switchViewMode
 }
 
-function switchViewMode(mode: ViewMode): void {
+export function switchViewMode(mode: ViewMode): void {
   if (S.viewMode === mode) return
   S.activeSubgraph = null
   S.expandedFolders.clear()
   S.viewMode = mode
-  S.strategy = strategies[mode]
+  S.strategy = getStrategy(mode)
   void saveStore('view', mode)
   buildViews()
   void app.rebuild(false)

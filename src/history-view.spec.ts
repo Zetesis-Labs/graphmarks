@@ -10,11 +10,11 @@ vi.mock('./ui/toast', () => ({ toast: vi.fn() }))
 import { MOCK_TABS } from './env'
 import { buildHistoryGraph, invalidateHistoryGraph } from './history-view'
 import { S } from './state'
-import { strategies } from './view-strategy'
+import { getStrategy } from './view-strategy'
 
 beforeEach(() => {
   S.viewMode = 'history'
-  S.strategy = strategies.history
+  S.strategy = getStrategy('history')
   S.historyRange = { preset: '24h' }
   S.historyGrouping = 'domain'
   S.historyMuted = new Set()

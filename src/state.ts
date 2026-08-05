@@ -4,6 +4,7 @@ import { loadStore, saveStore } from './lib/storage'
 import type {
   Cluster,
   Colors,
+  CustomViewSpec,
   FolderPreferences,
   GraphLink,
   GraphNode,
@@ -65,6 +66,7 @@ export interface AppState {
   savedSessions: SavedSession[]
   customIcons: Map<string, FaviconRecord>
   customColors: Record<string, string>
+  customViews: CustomViewSpec[]
   folderPrefs: FolderPreferences
   /** Subgrafo abierto durante esta pestaña; no se restaura al abrir otra. */
   activeSubgraph: string | null
@@ -80,11 +82,11 @@ export interface AppState {
   demo: boolean
 }
 
-import { strategies } from './view-strategy'
+import { getStrategy } from './view-strategy'
 
 export const S: AppState = {
   viewMode: 'folders',
-  strategy: strategies.folders,
+  strategy: getStrategy('folders'),
   tagsMap: {},
   nodes: [],
   links: [],
@@ -116,6 +118,7 @@ export const S: AppState = {
   savedSessions: [],
   customIcons: new Map(),
   customColors: {},
+  customViews: [],
   folderPrefs: {},
   activeSubgraph: null,
   expandedFolders: new Set(),
@@ -166,9 +169,9 @@ export function saveLayoutSoon(): void {
 
 export async function loadPersistedState(params: URLSearchParams): Promise<void> {
   const view = params.get('view') ?? (await loadStore<string>('view', 'folders'))
-  S.viewMode = view === 'tags' || view === 'domains' || view === 'history' ? view : 'folders'
-  const { strategies } = await import('./view-strategy')
-  S.strategy = strategies[S.viewMode]
+  S.viewMode = view ?? 'folders'
+  const { getStrategy } = await import('./view-strategy')
+  S.strategy = getStrategy(S.viewMode)
   S.onlyOpen = params.get('filter') === 'open' || (await loadStore('onlyOpen', false))
   S.showGhosts = await loadStore('ghosts', true)
   S.winFilter = await loadStore<WinFilter>('winFilter', 'all')

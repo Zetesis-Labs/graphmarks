@@ -1,10 +1,12 @@
 import { OTHER_CONTAINER } from './constants'
 import { buildGraphDomains, buildGraphFolders, buildGraphTags, members } from './graph/build'
 import { t } from './i18n'
+import { GraphIndex } from './lib/graph-index'
+import { evaluateGraphQuery, parseGraphQuery } from './lib/graph-query'
 import { short } from './lib/utils'
 import { S } from './state'
 import { setTags, tagsOf } from './tags'
-import type { MenuItem, ViewMode, ViewStrategy } from './types'
+import type { CustomViewSpec, MenuItem, ViewMode, ViewStrategy } from './types'
 
 /* --- helpers compartidos --- */
 
@@ -265,9 +267,51 @@ const historyStrategy: ViewStrategy = {
 /*  Registro                                                                  */
 /* ========================================================================== */
 
-export const strategies: Record<ViewMode, ViewStrategy> = {
+export const strategies: Record<string, ViewStrategy> = {
   folders: foldersStrategy,
   tags: tagsStrategy,
   domains: domainsStrategy,
   history: historyStrategy
+}
+
+export function getStrategy(mode: ViewMode): ViewStrategy {
+  const builtin = strategies[mode]
+  if (builtin) return builtin
+  const spec = S.customViews.find(v => v.id === mode)
+  if (spec) return createCustomStrategy(spec)
+  return foldersStrategy
+}
+
+export function createCustomStrategy(spec: CustomViewSpec): ViewStrategy {
+  return {
+    build(tree) {
+      buildGraphFolders(tree)
+      const index = new GraphIndex(S.nodes, S.links)
+      const ast = parseGraphQuery(spec.query)
+      const matchedNodes = evaluateGraphQuery(ast, index, S.openTabs, new Set(Object.keys(S.pinned[spec.id] ?? {})))
+      const matchedIds = new Set(matchedNodes.map(n => n.id))
+
+      S.nodes = S.nodes.filter(n => matchedIds.has(n.id))
+      S.links = S.links.filter(l => {
+        const s = typeof l.source === 'object' ? (l.source as { id: string }).id : String(l.source)
+        const t = typeof l.target === 'object' ? (l.target as { id: string }).id : String(l.target)
+        return matchedIds.has(s) && matchedIds.has(t)
+      })
+      S.byId = new Map(S.nodes.map(n => [n.id, n]))
+    },
+    supportsGhosts: true,
+    supportsPresentation: false,
+    supportsHeat: true,
+    hostLinks: true,
+    isDropTarget() {
+      return false
+    },
+    handleDrop: noop,
+    emptyMessage() {
+      return {
+        title: spec.name,
+        body: `No hay marcadores que coincidan con la consulta "${spec.query}".`
+      }
+    }
+  }
 }

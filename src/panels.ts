@@ -6,8 +6,9 @@ import { closeSubgraph, zoomToNodes } from './interactions'
 import { saveStore } from './lib/storage'
 import { S } from './state'
 import type { Cluster, ViewMode } from './types'
+import { promptCustomViewDialog } from './ui/custom-view-dialog'
 import { legendEl, listPanel, listToggle, viewsEl } from './ui/dom'
-import { strategies } from './view-strategy'
+import { createCustomStrategy, getStrategy } from './view-strategy'
 
 function clusterDotColor(c: Cluster): string {
   const raw = S.byId.get(c.id)?.raw
@@ -29,7 +30,7 @@ export function buildViews(): void {
         S.activeSubgraph = null
         S.expandedFolders.clear()
         S.viewMode = mode
-        S.strategy = strategies[mode]
+        S.strategy = getStrategy(mode)
         await saveStore('view', mode)
         buildViews()
         await app.rebuild(false)
@@ -38,6 +39,39 @@ export function buildViews(): void {
     })
     viewsEl.appendChild(b)
   }
+
+  // Vistas personalizadas del usuario
+  for (const spec of S.customViews) {
+    const b = document.createElement('button')
+    b.textContent = `${spec.icon} ${spec.name}`
+    b.title = `${spec.name} (${spec.query}) · Clic derecho para editar`
+    b.classList.toggle('active', spec.id === S.viewMode)
+    b.addEventListener('click', () => {
+      void (async () => {
+        if (spec.id === S.viewMode) return
+        S.activeSubgraph = null
+        S.expandedFolders.clear()
+        S.viewMode = spec.id
+        S.strategy = createCustomStrategy(spec)
+        await saveStore('view', spec.id)
+        buildViews()
+        await app.rebuild(false)
+        zoomToNodes(S.nodes, 80)
+      })()
+    })
+    b.addEventListener('contextmenu', ev => {
+      ev.preventDefault()
+      promptCustomViewDialog(spec)
+    })
+    viewsEl.appendChild(b)
+  }
+
+  // Botón + Nueva vista
+  const addBtn = document.createElement('button')
+  addBtn.textContent = '+'
+  addBtn.title = t('newCustomView')
+  addBtn.addEventListener('click', () => promptCustomViewDialog())
+  viewsEl.appendChild(addBtn)
 }
 
 export function buildLegend(): void {

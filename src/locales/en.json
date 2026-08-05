@@ -250,5 +250,13 @@
   "cmdFrameAll": "Frame entire graph",
   "cmdExport": "Export bookmarks to JSON",
   "cmdImport": "Import bookmarks from JSON",
-  "cmdShowGuide": "View interactive tour"
+  "cmdShowGuide": "View interactive tour",
+  "newCustomView": "+ New view…",
+  "editCustomView": "Edit view…",
+  "deleteCustomView": "Delete view",
+  "customViewName": "View name",
+  "customViewIcon": "Icon (Emoji)",
+  "customViewQuery": "DSL Query",
+  "customViewPreview": "Preview: $1 bookmarks match",
+  "customViewSave": "Save view"
 }

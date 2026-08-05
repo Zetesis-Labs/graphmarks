@@ -9,6 +9,7 @@ import { computeHistory } from './history'
 import { buildHistoryGraph, invalidateHistoryGraph } from './history-view'
 import { localizeDom, t } from './i18n'
 import { initCanvasInteractions, resetZoom, zoomToNodes } from './interactions'
+import { loadStore } from './lib/storage'
 import { computeResizedTransform } from './lib/viewport-resize'
 import { maybeStartOnboarding, startOnboarding } from './onboarding'
 import { buildLegend, buildList, buildViews, initPanels } from './panels'
@@ -28,10 +29,11 @@ import {
   updateBadge
 } from './tabs'
 import { loadTags, seedTagsIfEmpty } from './tags'
-import type { RawBookmarkNode } from './types'
+import type { CustomViewSpec, RawBookmarkNode } from './types'
 import { canvas, emptyEl, installErrorSurface } from './ui/dom'
 import { installMenuDismiss } from './ui/menu'
 import { toast } from './ui/toast'
+import { createCustomStrategy } from './view-strategy'
 
 installErrorSurface()
 localizeDom()
@@ -193,6 +195,11 @@ async function boot(): Promise<void> {
   await resolveCurrentWindow()
   await loadSessions()
   await loadCustomizations()
+  S.customViews = (await loadStore<CustomViewSpec[]>('customViews', [])) ?? []
+  const customSpec = S.customViews.find(v => v.id === S.viewMode)
+  if (customSpec) {
+    S.strategy = createCustomStrategy(customSpec)
+  }
   void checkPermissions()
   S.tagsMap = await loadTags()
 
