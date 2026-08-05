@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestBookmarkMatch, domainKey, normPath, short, strHash } from './utils'
+import { bestBookmarkMatch, canonicalUrl, domainKey, normPath, short, strHash } from './utils'
 
 describe('normPath', () => {
   it('quita barras finales y nunca devuelve vacío', () => {
@@ -59,5 +59,29 @@ describe('strHash', () => {
   it('es estable y no negativo', () => {
     expect(strHash('https://example.com')).toBe(strHash('https://example.com'))
     expect(strHash('a')).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('canonicalUrl', () => {
+  it('quita trackers y fragmentos decorativos', () => {
+    expect(canonicalUrl('https://a.com/x?utm_source=tw&id=3#seccion')).toBe('https://a.com/x?id=3')
+    expect(canonicalUrl('https://a.com/x?fbclid=abc')).toBe('https://a.com/x')
+  })
+
+  it('ignora el orden de los parámetros', () => {
+    expect(canonicalUrl('https://a.com/x?b=2&a=1')).toBe(canonicalUrl('https://a.com/x?a=1&b=2'))
+  })
+
+  it('conserva rutas SPA por hash', () => {
+    expect(canonicalUrl('https://a.com/#/inbox')).toBe('https://a.com/#/inbox')
+    expect(canonicalUrl('https://a.com/#top')).toBe('https://a.com/')
+  })
+
+  it('normaliza host y barras finales sin tocar el caso de la ruta', () => {
+    expect(canonicalUrl('https://A.com/Path/')).toBe('https://a.com/Path')
+  })
+
+  it('devuelve la entrada intacta si no parsea', () => {
+    expect(canonicalUrl('no-es-una-url')).toBe('no-es-una-url')
   })
 })

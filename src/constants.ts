@@ -27,8 +27,9 @@ export const MAX_SATS = 6
 
 export const TAG_BUCKETS = 12
 
-export const VIEW_KEYS: Record<ViewMode, 'viewFolders' | 'viewTags' | 'viewDomains'> = {
+export const VIEW_KEYS: Record<ViewMode, 'viewFolders' | 'viewTags' | 'viewDomains' | 'viewHistory'> = {
   folders: 'viewFolders',
   tags: 'viewTags',
-  domains: 'viewDomains'
+  domains: 'viewDomains',
+  history: 'viewHistory'
 }

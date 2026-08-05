@@ -35,6 +35,40 @@ export function short(s: string, n = 34): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s
 }
 
+const TRACKING_PARAMS = new Set([
+  'gclid',
+  'fbclid',
+  'msclkid',
+  'yclid',
+  'wbraid',
+  'gbraid',
+  'igshid',
+  'mc_cid',
+  'mc_eid'
+])
+
+/**
+ * Clave de deduplicación: la misma página aunque cambien los trackers, el orden
+ * de los parámetros o el fragmento. Los hash de rutas SPA (`#/`, `#!`) sí son
+ * páginas distintas y se conservan. No es una URL para abrir: solo una clave.
+ */
+export function canonicalUrl(url: string): string {
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    return url
+  }
+  const params = [...u.searchParams].filter(([k]) => {
+    const key = k.toLowerCase()
+    return !key.startsWith('utm_') && !TRACKING_PARAMS.has(key)
+  })
+  params.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  const query = params.length ? `?${new URLSearchParams(params).toString()}` : ''
+  const hash = u.hash.startsWith('#/') || u.hash.startsWith('#!') ? u.hash : ''
+  return `${u.protocol}//${u.host}${normPath(u.pathname)}${query}${hash}`
+}
+
 export interface Matchable {
   mHost?: string
   mPath?: string

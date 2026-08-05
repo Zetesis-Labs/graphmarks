@@ -16,7 +16,9 @@ export function exportData(): void {
     tags: S.tagsMap,
     layout: S.pinned,
     sessions: S.savedSessions,
-    folderPrefs: S.folderPrefs
+    folderPrefs: S.folderPrefs,
+    historyRange: S.historyRange,
+    historyGrouping: S.historyGrouping
   }
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })
   const a = document.createElement('a')
@@ -24,6 +26,35 @@ export function exportData(): void {
   a.download = `graphmarks-${new Date().toISOString().slice(0, 10)}.json`
   a.click()
   URL.revokeObjectURL(a.href)
+}
+
+async function applyImport(data: ExportPayload): Promise<void> {
+  if (data.tags) {
+    S.tagsMap = { ...S.tagsMap, ...data.tags }
+    await persistTags()
+  }
+  if (data.layout) {
+    S.pinned = data.layout
+    await saveStore('layout', S.pinned)
+  }
+  if (data.folderPrefs) {
+    S.folderPrefs = { ...S.folderPrefs, ...data.folderPrefs }
+    await saveStore('folderPrefs', S.folderPrefs)
+  }
+  if (data.historyRange) {
+    S.historyRange = data.historyRange
+    await saveStore('historyRange', S.historyRange)
+  }
+  if (data.historyGrouping) {
+    S.historyGrouping = data.historyGrouping
+    await saveStore('historyGrouping', S.historyGrouping)
+  }
+  if (Array.isArray(data.sessions)) {
+    const known = new Set(S.savedSessions.map(s => s.id))
+    S.savedSessions.push(...data.sessions.filter(s => !known.has(s.id)))
+    await persistSessions()
+    updateSessionsChip()
+  }
 }
 
 export function importData(): void {
@@ -35,25 +66,7 @@ export function importData(): void {
       const f = inp.files?.[0]
       if (!f) return
       try {
-        const data = JSON.parse(await f.text()) as ExportPayload
-        if (data.tags) {
-          S.tagsMap = { ...S.tagsMap, ...data.tags }
-          await persistTags()
-        }
-        if (data.layout) {
-          S.pinned = data.layout
-          await saveStore('layout', S.pinned)
-        }
-        if (data.folderPrefs) {
-          S.folderPrefs = { ...S.folderPrefs, ...data.folderPrefs }
-          await saveStore('folderPrefs', S.folderPrefs)
-        }
-        if (Array.isArray(data.sessions)) {
-          const known = new Set(S.savedSessions.map(s => s.id))
-          S.savedSessions.push(...data.sessions.filter(s => !known.has(s.id)))
-          await persistSessions()
-          updateSessionsChip()
-        }
+        await applyImport(JSON.parse(await f.text()) as ExportPayload)
         toast(t('toastImported'))
         app.rebuildSoon()
       } catch (e) {

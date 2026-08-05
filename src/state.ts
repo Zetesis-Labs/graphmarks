@@ -7,6 +7,8 @@ import type {
   FolderPreferences,
   GraphLink,
   GraphNode,
+  HistoryGrouping,
+  HistoryRange,
   HitAux,
   PinMap,
   PinnedLayouts,
@@ -65,6 +67,8 @@ export interface AppState {
   activeSubgraph: string | null
   /** Carpetas plegadas por defecto que el usuario ha abierto temporalmente. */
   expandedFolders: Set<string>
+  historyRange: HistoryRange
+  historyGrouping: HistoryGrouping
 }
 
 export const S: AppState = {
@@ -101,7 +105,9 @@ export const S: AppState = {
   customColors: {},
   folderPrefs: {},
   activeSubgraph: null,
-  expandedFolders: new Set()
+  expandedFolders: new Set(),
+  historyRange: { preset: '24h' },
+  historyGrouping: 'domain'
 }
 
 export const COLORS: Colors = {
@@ -144,11 +150,13 @@ export function saveLayoutSoon(): void {
 
 export async function loadPersistedState(params: URLSearchParams): Promise<void> {
   const view = params.get('view') ?? (await loadStore<string>('view', 'folders'))
-  S.viewMode = view === 'tags' || view === 'domains' ? view : 'folders'
+  S.viewMode = view === 'tags' || view === 'domains' || view === 'history' ? view : 'folders'
   S.onlyOpen = params.get('filter') === 'open' || (await loadStore('onlyOpen', false))
   S.showGhosts = await loadStore('ghosts', true)
   S.winFilter = await loadStore<WinFilter>('winFilter', 'all')
   S.pinned = await loadStore<PinnedLayouts>('layout', {})
   S.folderPrefs = await loadStore<FolderPreferences>('folderPrefs', {})
+  S.historyRange = await loadStore<HistoryRange>('historyRange', { preset: '24h' })
+  S.historyGrouping = await loadStore<HistoryGrouping>('historyGrouping', 'domain')
   S.savedSessions = await loadStore<SavedSession[]>('sessions', [])
 }

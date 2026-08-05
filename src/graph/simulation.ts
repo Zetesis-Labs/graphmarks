@@ -13,6 +13,7 @@ const targetFolder = (l: GraphLink): GraphNode | null =>
 /* Los niveles de jerarquía (subdominio/ruta) se aprietan contra su padre. */
 function linkDistance(l: GraphLink): number {
   if (l.type === 'host') return 130
+  if (l.type === 'history') return 95
   const f = targetFolder(l)
   if (!f) return 36
   if (f.subtype === 'path') return 55
@@ -35,7 +36,7 @@ export function startSimulation(alpha: number): void {
       forceLink<GraphNode, GraphLink>(S.links)
         .id(d => d.id)
         .distance(linkDistance)
-        .strength(l => (l.type === 'host' ? 0.04 : targetFolder(l) ? 0.55 : 0.45))
+        .strength(l => (l.type === 'host' ? 0.04 : l.type === 'history' ? 0.12 : targetFolder(l) ? 0.55 : 0.45))
     )
     .force('charge', forceManyBody<GraphNode>().strength(chargeOf))
     .force(

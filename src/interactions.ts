@@ -77,7 +77,7 @@ export function resetZoom(): void {
 /* --- soltado: mover carpeta, etiquetar o adoptar pestaña --- */
 
 function dropExcludes(subject: GraphNode): Set<string> | null {
-  if (S.viewMode === 'domains') return null // sin semántica de soltado
+  if (S.viewMode === 'domains' || S.viewMode === 'history') return null // sin semántica de soltado
   if (S.viewMode === 'tags') {
     if (subject.type !== 'bm' && !ADOPTABLE.has(subject.type)) return null
     return new Set([...(subject.hubs ?? []), UNTAGGED])
@@ -279,6 +279,10 @@ function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof find
     sub = n.url ?? ''
   } else if (n.type === 'bm') {
     sub = n.url ?? ''
+    if (n.history) {
+      const visits = n.historyVisits ?? 1
+      sub += `  ·  ${visits === 1 ? t('historyVisitOne') : t('historyVisits', visits)}`
+    }
     const open = S.openTabs.get(n.id)
     if (open?.length) sub += `  ·  ${open.length === 1 ? t('tooltipOpenCountOne') : t('tooltipOpenCount', open.length)}`
     tagLine = n.tags?.length ? n.tags.map(t => `#${t}`).join('  ') : ''
@@ -337,6 +341,27 @@ function backgroundMenu(): MenuItem[] {
 }
 
 function nodeMenu(n: GraphNode): MenuItem[] {
+  if (n.type === 'bm' && n.history) {
+    const open = S.openTabs.get(n.id) ?? []
+    return [
+      ...(open.length
+        ? [
+            {
+              label: open.length > 1 ? t('menuGoToOpenTabs', open.length) : t('menuGoToOpenTab'),
+              action: () => {
+                const first = open[0]
+                if (first) void activateTab(first)
+              }
+            }
+          ]
+        : []),
+      { label: t('menuOpen'), action: () => (window.location.href = n.url ?? '') },
+      { label: t('menuOpenNewTab'), action: () => window.open(n.url ?? '') },
+      { sep: true },
+      { label: t('menuSaveAsBookmark'), action: () => promptAdopt(n) },
+      ...pinItem(n)
+    ]
+  }
   if (n.type === 'bm') {
     const open = S.openTabs.get(n.id) ?? []
     return [
