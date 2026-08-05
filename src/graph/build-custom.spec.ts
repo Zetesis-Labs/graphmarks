@@ -51,4 +51,14 @@ describe('build-custom', () => {
     const bmNode = S.nodes.find(n => n.title === 'GitHub')
     expect(bmNode?.parentId).toBe('f1')
   })
+
+  it('filtra marcadores por el nombre de su carpeta contenedora (folder:Work)', () => {
+    buildCustomGraph(tree, 'folder:Work')
+
+    expect(S.nodes.map(n => n.title)).toContain('GitHub')
+    expect(S.nodes.map(n => n.title)).toContain('Vite')
+    expect(S.nodes.map(n => n.title)).toContain('Work')
+    expect(S.nodes.map(n => n.title)).not.toContain('Personal')
+    expect(S.nodes.map(n => n.title)).not.toContain('Reddit')
+  })
 })

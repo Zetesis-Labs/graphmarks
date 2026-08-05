@@ -119,19 +119,20 @@ function matchStateCondition(
 function matchCondition(
   cond: QueryCondition,
   node: GraphNode,
-  _index: GraphIndex,
+  index: GraphIndex,
   openTabs: Map<string, unknown>,
   pinnedIds: Set<string>
 ): boolean {
   switch (cond.field) {
     case 'tag':
       return (node.tags?.map(t => t.toLowerCase()) ?? []).includes(String(cond.value))
-    case 'folder':
-      return (
-        node.folderId?.toLowerCase().includes(String(cond.value)) ||
-        node.raw?.toLowerCase().includes(String(cond.value)) ||
-        false
-      )
+    case 'folder': {
+      const target = String(cond.value).toLowerCase()
+      if (node.folderId?.toLowerCase().includes(target)) return true
+      if (node.raw?.toLowerCase().includes(target)) return true
+      const ancestorTitles = index.getAncestorFolderTitles(node.id)
+      return ancestorTitles.some((t: string) => t.includes(target))
+    }
     case 'domain':
       return node.mHost ? node.mHost.toLowerCase().includes(String(cond.value)) : false
     case 'title':

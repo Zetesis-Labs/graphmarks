@@ -76,6 +76,25 @@ export class GraphIndex {
     return this.graph.hasNode(id) ? this.graph.degree(id) : 0
   }
 
+  public getAncestorFolderTitles(id: string): string[] {
+    const titles: string[] = []
+    let currId = this.nodeMap.get(id)?.folderId ?? null
+    const visited = new Set<string>()
+
+    while (currId && !visited.has(currId)) {
+      visited.add(currId)
+      const folderNode = this.nodeMap.get(currId)
+      if (folderNode) {
+        if (folderNode.title) titles.push(folderNode.title.toLowerCase())
+        currId = folderNode.folderId ?? null
+      } else {
+        break
+      }
+    }
+
+    return titles
+  }
+
   public filterNodes(predicate: (n: GraphNode) => boolean): GraphNode[] {
     const results: GraphNode[] = []
     for (const n of this.nodeMap.values()) {
