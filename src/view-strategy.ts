@@ -1,8 +1,6 @@
 import { OTHER_CONTAINER } from './constants'
 import { buildGraphDomains, buildGraphFolders, buildGraphTags, members } from './graph/build'
 import { t } from './i18n'
-import { GraphIndex } from './lib/graph-index'
-import { evaluateGraphQuery, parseGraphQuery } from './lib/graph-query'
 import { short } from './lib/utils'
 import { S } from './state'
 import { setTags, tagsOf } from './tags'
@@ -282,31 +280,22 @@ export function getStrategy(mode: ViewMode): ViewStrategy {
   return foldersStrategy
 }
 
+import { buildCustomGraph } from './graph/build-custom'
+
 export function createCustomStrategy(spec: CustomViewSpec): ViewStrategy {
   return {
     build(tree) {
-      buildGraphFolders(tree)
-      const index = new GraphIndex(S.nodes, S.links)
-      const ast = parseGraphQuery(spec.query)
-      const matchedNodes = evaluateGraphQuery(ast, index, S.openTabs, new Set(Object.keys(S.pinned[spec.id] ?? {})))
-      const matchedIds = new Set(matchedNodes.map(n => n.id))
-
-      S.nodes = S.nodes.filter(n => matchedIds.has(n.id))
-      S.links = S.links.filter(l => {
-        const s = typeof l.source === 'object' ? (l.source as { id: string }).id : String(l.source)
-        const t = typeof l.target === 'object' ? (l.target as { id: string }).id : String(l.target)
-        return matchedIds.has(s) && matchedIds.has(t)
-      })
-      S.byId = new Map(S.nodes.map(n => [n.id, n]))
+      buildCustomGraph(tree, spec.query)
     },
     supportsGhosts: true,
-    supportsPresentation: false,
+    supportsPresentation: true,
     supportsHeat: true,
     hostLinks: true,
-    isDropTarget() {
-      return false
+    isDropTarget(n) {
+      return n.type === 'folder' && !n.subtype
     },
-    handleDrop: noop,
+    handleDrop: foldersStrategy.handleDrop,
+    bmColor: foldersStrategy.bmColor,
     emptyMessage() {
       return {
         title: spec.name,

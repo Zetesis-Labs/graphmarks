@@ -70,7 +70,8 @@ export function promptCustomViewDialog(existing?: CustomViewSpec): void {
   previewEl.style.marginTop = '8px'
 
   function updatePreview(): void {
-    const index = new GraphIndex(S.allBms.length ? S.allBms : S.nodes, S.links)
+    const tempNodes = S.allBms.length ? S.allBms : S.nodes
+    const index = new GraphIndex(tempNodes, [])
     const ast = parseGraphQuery(queryInput.value)
     const matches = evaluateGraphQuery(ast, index, S.openTabs, new Set(Object.keys(S.pinned)))
     previewEl.textContent = t('customViewPreview', matches.length)
@@ -79,9 +80,10 @@ export function promptCustomViewDialog(existing?: CustomViewSpec): void {
   function updateAutocomplete(): void {
     const text = queryInput.value
     const pos = queryInput.selectionStart ?? text.length
-    const tags = Object.keys(S.tagsMap)
+    const tags = Array.from(new Set(S.allBms.flatMap(n => n.tags ?? [])))
     const folders = Array.from(new Set(S.nodes.filter(n => n.type === 'folder').map(n => n.title)))
-    const sugs = getQuerySuggestions(text, pos, { tags, folders })
+    const domains = Array.from(new Set(S.allBms.map(n => n.mHost).filter((h): h is string => !!h)))
+    const sugs = getQuerySuggestions(text, pos, { tags, folders, domains })
 
     if (!sugs.length) {
       sugBox.style.display = 'none'
