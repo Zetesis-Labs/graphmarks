@@ -5,6 +5,7 @@ import { loadFavicon } from './graph/build'
 import { type ResolvedHistoryRange, resolveHistoryRange } from './history-range'
 import { sessionLabel, splitSessions, type VisitEvent } from './history-sessions'
 import { t } from './i18n'
+import { bookmarkUrlKeys } from './lib/graph-shape'
 import { saveStore } from './lib/storage'
 import { canonicalUrl, domainKey, normPath } from './lib/utils'
 import { S } from './state'
@@ -254,12 +255,20 @@ function addHistorySessions(records: HistoryNodeRecord[]): void {
   S.clusters.reverse()
 }
 
+/** Triaje: fuera dominios silenciados, marca lo no guardado y aplica el filtro. */
+function triageRecords(records: HistoryNodeRecord[]): HistoryNodeRecord[] {
+  const saved = bookmarkUrlKeys(S.lastTree)
+  const kept = records.filter(r => !S.historyMuted.has(domainKey(r.node.mHost ?? '')))
+  for (const { node } of kept) node.unsaved = !saved.has(canonicalUrl(node.url ?? ''))
+  return S.historyUnsavedOnly ? kept.filter(r => r.node.unsaved) : kept
+}
+
 /** Construye nodos URL, hubs (dominio o sesión) y aristas de navegación reales. */
 export async function buildHistoryGraph(): Promise<boolean> {
   const generation = ++buildGeneration
   const pages = await historyPages(resolveHistoryRange(S.historyRange))
   if (generation !== buildGeneration || S.viewMode !== 'history') return false
-  const records = makeHistoryRecords(dedupePages(pages))
+  const records = triageRecords(makeHistoryRecords(dedupePages(pages)))
   resetHistoryState()
   if (S.historyGrouping === 'session') addHistorySessions(records)
   else addHistoryDomains(addHistoryPages(records))
@@ -332,6 +341,26 @@ function promptCustomRange(): void {
   )
 }
 
+export async function setHistoryUnsavedOnly(on: boolean): Promise<void> {
+  if (S.historyUnsavedOnly === on) return
+  S.historyUnsavedOnly = on
+  await app.rebuild(false)
+  app.zoomToNodes(S.nodes, 80)
+}
+
+export async function muteHistoryDomain(domain: string): Promise<void> {
+  S.historyMuted.add(domain)
+  await saveStore('historyMuted', [...S.historyMuted])
+  toast(t('toastDomainMuted', domain))
+  await app.rebuild(false)
+}
+
+async function unmuteHistoryDomain(domain: string): Promise<void> {
+  S.historyMuted.delete(domain)
+  await saveStore('historyMuted', [...S.historyMuted])
+  await app.rebuild(false)
+}
+
 async function setHistoryGrouping(grouping: HistoryGrouping): Promise<void> {
   if (S.historyGrouping === grouping) return
   S.historyGrouping = grouping
@@ -357,6 +386,15 @@ export function historyRangeMenu(): MenuItem[] {
     ...groupings.map(([grouping, label]) => ({
       label: `${S.historyGrouping === grouping ? '✓ ' : ''}${label}`,
       action: () => void setHistoryGrouping(grouping)
-    }))
+    })),
+    ...(S.historyMuted.size
+      ? [
+          { sep: true } as MenuItem,
+          ...[...S.historyMuted].sort().map(domain => ({
+            label: t('menuUnmuteDomain', domain),
+            action: () => void unmuteHistoryDomain(domain)
+          }))
+        ]
+      : [])
   ]
 }

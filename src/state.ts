@@ -69,6 +69,10 @@ export interface AppState {
   expandedFolders: Set<string>
   historyRange: HistoryRange
   historyGrouping: HistoryGrouping
+  /** Dominios silenciados en la vista historial (ruido: buscadores, SSO…). */
+  historyMuted: Set<string>
+  /** Filtro de triaje: solo páginas sin marcador. No se persiste. */
+  historyUnsavedOnly: boolean
   /** Guía en marcha: el grafo y las pestañas salen de los datos de muestra. */
   demo: boolean
 }
@@ -110,6 +114,8 @@ export const S: AppState = {
   expandedFolders: new Set(),
   historyRange: { preset: '24h' },
   historyGrouping: 'domain',
+  historyMuted: new Set(),
+  historyUnsavedOnly: false,
   demo: false
 }
 
@@ -161,5 +167,6 @@ export async function loadPersistedState(params: URLSearchParams): Promise<void>
   S.folderPrefs = await loadStore<FolderPreferences>('folderPrefs', {})
   S.historyRange = await loadStore<HistoryRange>('historyRange', { preset: '24h' })
   S.historyGrouping = await loadStore<HistoryGrouping>('historyGrouping', 'domain')
+  S.historyMuted = new Set(await loadStore<string[]>('historyMuted', []))
   S.savedSessions = await loadStore<SavedSession[]>('sessions', [])
 }

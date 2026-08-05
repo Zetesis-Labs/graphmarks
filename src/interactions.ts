@@ -15,6 +15,7 @@ import {
   promptNewFolder,
   promptRename,
   promptRenameTag,
+  promptSaveHistoryNodes,
   promptTagFolder,
   promptTags,
   promptUrl
@@ -23,6 +24,7 @@ import { members } from './graph/build'
 import { findAt, findFolderAt, findHit } from './graph/hit'
 import { simulation } from './graph/simulation'
 import { nodeColor, radius } from './graph/style'
+import { muteHistoryDomain } from './history-view'
 import { t } from './i18n'
 import { dropExclusions } from './lib/drop-rules'
 import { fitTransform } from './lib/fit'
@@ -269,6 +271,7 @@ function bmTooltipContent(n: GraphNode): TooltipContent {
   if (n.history) {
     const visits = n.historyVisits ?? 1
     sub += `  ·  ${visits === 1 ? t('historyVisitOne') : t('historyVisits', visits)}`
+    if (n.unsaved) sub += `  ·  ${t('historyUnsavedBadge')}`
   }
   const open = S.openTabs.get(n.id)
   if (open?.length) sub += `  ·  ${open.length === 1 ? t('tooltipOpenCountOne') : t('tooltipOpenCount', open.length)}`
@@ -342,6 +345,23 @@ function backgroundMenu(): MenuItem[] {
     { label: t('menuImport'), action: () => importData() },
     { sep: true },
     { label: t('menuShowGuide'), action: () => app.startGuide() }
+  ]
+}
+
+/** Hubs de la vista historial: encuadrar, guardar lo no guardado y silenciar ruido. */
+function historyHubMenu(n: GraphNode): MenuItem[] {
+  const unsaved = members(n).filter(m => m.type === 'bm' && m.unsaved)
+  return [
+    { label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) },
+    ...(unsaved.length
+      ? [{ label: t('menuSaveUnsaved', unsaved.length), action: () => promptSaveHistoryNodes(unsaved) }]
+      : []),
+    ...(n.id.startsWith('hist-domain:')
+      ? [
+          { sep: true },
+          { label: t('menuMuteDomain', n.title), danger: true, action: () => void muteHistoryDomain(n.title) }
+        ]
+      : [])
   ]
 }
 
@@ -424,6 +444,7 @@ export function nodeMenu(n: GraphNode): MenuItem[] {
   if (n.type === 'bm') return bmMenu(n)
   if (n.type === 'ghost') return ghostMenu(n)
   if (n.subtype === 'ghosthub' || n.subtype === 'domain' || n.subtype === 'subdomain' || n.subtype === 'path') {
+    if (S.viewMode === 'history') return historyHubMenu(n)
     return [{ label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) }]
   }
   if (n.subtype === 'tag') return tagHubMenu(n)

@@ -12,6 +12,9 @@ beforeEach(() => {
   S.viewMode = 'history'
   S.historyRange = { preset: '24h' }
   S.historyGrouping = 'domain'
+  S.historyMuted = new Set()
+  S.historyUnsavedOnly = false
+  S.lastTree = []
   S.tagsMap = {}
   invalidateHistoryGraph()
 })
@@ -29,6 +32,24 @@ describe('buildHistoryGraph preview', () => {
     expect(domains.length).toBeGreaterThan(0)
     expect(navigation).toHaveLength(expectedPages - 1)
     expect(pages.every(node => node.parentId?.startsWith('hist-domain:'))).toBe(true)
+  })
+
+  it('triaje: silencia dominios, marca lo no guardado y filtra', async () => {
+    const first = MOCK_TABS.filter(tab => /^https?:/.test(tab.url ?? ''))[0]
+    S.lastTree = [{ id: '0', title: '', children: [{ id: 'b1', title: 'guardado', url: first?.url }] }]
+    S.historyMuted = new Set(['proton.me'])
+    await buildHistoryGraph()
+
+    const pages = S.nodes.filter(n => n.history)
+    expect(pages.some(n => (n.mHost ?? '').endsWith('proton.me'))).toBe(false)
+    expect(pages.find(n => n.url === first?.url)?.unsaved).toBe(false)
+    expect(pages.filter(n => n.unsaved)).toHaveLength(pages.length - 1)
+
+    S.historyUnsavedOnly = true
+    await buildHistoryGraph()
+    const filtered = S.nodes.filter(n => n.history)
+    expect(filtered).toHaveLength(pages.length - 1)
+    expect(filtered.every(n => n.unsaved)).toBe(true)
   })
 
   it('agrupa por sesiones de navegación cuando se selecciona ese modo', async () => {

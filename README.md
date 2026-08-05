@@ -149,6 +149,12 @@ se funden en un solo nodo. La consulta trae todas las URLs del intervalo (el
 corte real lo pone la retención de Chrome, 90 días) y se cachea un minuto en
 memoria.
 
+La vista incluye un **triaje de marcadores**: lo visitado que no tienes
+guardado se pinta hueco y discontinuo, el chip «☆ Sin guardar» filtra solo
+esas páginas, y el menú de cada dominio permite guardarlas en lote en una
+carpeta o **silenciar el dominio** entero (buscadores, SSO y demás ruido;
+se gestiona desde el menú «◷»).
+
 ## Layout manual
 
 Arrastrar un nodo lo **fija** donde lo sueltes (queda marcado con un punto) y
