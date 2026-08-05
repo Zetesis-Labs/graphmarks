@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchTabsToBookmarks, summarizeWindows } from './tab-match'
+import { aggregateVisitHeat, matchTabsToBookmarks, summarizeWindows } from './tab-match'
 
 const bms = [
   { id: 'root', mHost: 'github.com', mPath: '/' },
@@ -41,5 +41,28 @@ describe('matchTabsToBookmarks', () => {
     const { map, ghosts } = matchTabsToBookmarks([{ url: 'chrome://x' }, { url: '' }], bms)
     expect(map.size).toBe(0)
     expect(ghosts).toEqual([])
+  })
+})
+
+describe('aggregateVisitHeat', () => {
+  it('acumula visitas sobre el marcador más específico y recuerda la última', () => {
+    const agg = aggregateVisitHeat(
+      [
+        { url: 'https://github.com/acme/webapp/pull/1', visitCount: 3, lastVisitTime: 100 },
+        { url: 'https://github.com/acme/webapp', visitCount: 2, lastVisitTime: 50 },
+        { url: 'https://otro.dev/x', visitCount: 9 }
+      ],
+      [{ id: 'repo', url: 'https://github.com/acme/webapp', mHost: 'github.com', mPath: '/acme/webapp' }]
+    )
+    expect(agg.get('https://github.com/acme/webapp')).toEqual({ v: 5, last: 100 })
+    expect(agg.size).toBe(1)
+  })
+
+  it('recorta las visitas extremas a 50 por página', () => {
+    const agg = aggregateVisitHeat(
+      [{ url: 'https://a.com/', visitCount: 500, lastVisitTime: 1 }],
+      [{ id: 'a', url: 'https://a.com/', mHost: 'a.com', mPath: '/' }]
+    )
+    expect(agg.get('https://a.com/')?.v).toBe(50)
   })
 })

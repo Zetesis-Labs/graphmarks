@@ -62,7 +62,9 @@ interface OpenTabsResult {
 
 export async function computeOpenTabs(bms: GraphNode[]): Promise<OpenTabsResult> {
   let tabs: RawTab[]
-  if (IS_EXT) {
+  if (S.demo) {
+    tabs = MOCK_TABS
+  } else if (IS_EXT) {
     if (!chrome.tabs) {
       tabStatus(t('badgeNoTabsPermission'), true)
       return { map: new Map(), ghosts: [] }

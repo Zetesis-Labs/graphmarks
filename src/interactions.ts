@@ -339,7 +339,9 @@ function backgroundMenu(): MenuItem[] {
     { label: t('menuFrameEverything'), action: () => zoomToNodes(S.nodes, 80) },
     { sep: true },
     { label: t('menuExport'), action: () => exportData() },
-    { label: t('menuImport'), action: () => importData() }
+    { label: t('menuImport'), action: () => importData() },
+    { sep: true },
+    { label: t('menuShowGuide'), action: () => app.startGuide() }
   ]
 }
 
@@ -417,7 +419,7 @@ function tagHubMenu(n: GraphNode): MenuItem[] {
   ]
 }
 
-function nodeMenu(n: GraphNode): MenuItem[] {
+export function nodeMenu(n: GraphNode): MenuItem[] {
   if (n.type === 'bm' && n.history) return historyBmMenu(n)
   if (n.type === 'bm') return bmMenu(n)
   if (n.type === 'ghost') return ghostMenu(n)

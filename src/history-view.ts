@@ -97,7 +97,7 @@ async function concurrentMap<T, R>(items: T[], worker: (item: T) => Promise<R>):
 }
 
 async function queryHistory(range: ResolvedHistoryRange): Promise<PageVisits[]> {
-  if (!IS_EXT || !chrome.history) return mockHistory(range)
+  if (!IS_EXT || !chrome.history || S.demo) return mockHistory(range)
   const pages = (await chrome.history.search({
     text: '',
     startTime: range.start,

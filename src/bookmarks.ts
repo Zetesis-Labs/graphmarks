@@ -113,7 +113,7 @@ export async function safeOp(fn: () => Promise<unknown> | unknown): Promise<void
 }
 
 export async function loadTree(): Promise<RawBookmarkNode[]> {
-  if (IS_EXT) return chrome.bookmarks.getTree() as Promise<RawBookmarkNode[]>
+  if (IS_EXT && !S.demo) return chrome.bookmarks.getTree() as Promise<RawBookmarkNode[]>
   return window.MOCK_TREE ?? []
 }
 

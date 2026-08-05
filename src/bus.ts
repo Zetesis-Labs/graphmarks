@@ -12,5 +12,6 @@ export const app = {
   requestDraw: (): void => {},
   zoomToNodes: (_list: GraphNode[], _pad?: number, _duration?: number): void => {},
   applySearch: (_q: string): void => {},
-  clearSearch: (): void => {}
+  clearSearch: (): void => {},
+  startGuide: (): void => {}
 }

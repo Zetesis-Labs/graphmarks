@@ -190,6 +190,66 @@ html, body {
   background: var(--text-primary);
   border-color: var(--text-primary);
 }
+
+/* --- visita guiada --- */
+#tour {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+#tour .spot {
+  position: fixed;
+  border-radius: 12px;
+  box-shadow: 0 0 0 200vmax color-mix(in srgb, var(--page) 62%, transparent);
+  transition: all 0.28s ease;
+  pointer-events: none;
+}
+#tour .pop {
+  position: fixed;
+  max-width: 330px;
+  padding: 14px 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  transition: left 0.28s ease, top 0.28s ease;
+}
+#tour .pop h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+#tour .pop p {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+#tour .pop .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#tour .pop .count {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+#tour .pop button {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+#tour .pop button:hover { color: var(--text-primary); border-color: var(--baseline); }
+#tour .pop button.primary {
+  color: var(--page);
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
 .chip .dot {
   width: 9px; height: 9px;
   border-radius: 50%;
@@ -320,7 +380,7 @@ html, body {
 
 #ctxmenu {
   position: fixed;
-  z-index: 30;
+  z-index: 95; /* por encima del velo de la guía */
   min-width: 190px;
   padding: 5px;
   background: var(--surface-1);

@@ -9,6 +9,7 @@ import { computeHistory } from './history'
 import { buildHistoryGraph, invalidateHistoryGraph } from './history-view'
 import { localizeDom, t } from './i18n'
 import { initCanvasInteractions, resetZoom, zoomToNodes } from './interactions'
+import { maybeStartOnboarding, startOnboarding } from './onboarding'
 import { buildLegend, buildList, buildViews, initPanels } from './panels'
 import { invalidateGraphGeometry, requestDraw } from './render'
 import { applySearch, clearSearch, initSearch } from './search'
@@ -71,7 +72,8 @@ function placeNodes(prevPos: PrevPos): void {
       }
     }
   }
-  const pins = S.pinned[S.viewMode] ?? {}
+  // en la guía, el layout fijado del usuario no debe tocar los nodos de muestra
+  const pins = S.demo ? {} : (S.pinned[S.viewMode] ?? {})
   for (const n of S.nodes) {
     const p = pins[n.id]
     if (p) {
@@ -145,6 +147,7 @@ app.requestDraw = requestDraw
 app.zoomToNodes = zoomToNodes
 app.applySearch = applySearch
 app.clearSearch = clearSearch
+app.startGuide = startOnboarding
 
 function installChromeListeners(): void {
   if (!IS_EXT) return
@@ -224,6 +227,8 @@ async function boot(): Promise<void> {
       zoomToNodes(S.nodes, 80, 0)
     }
   }
+
+  void maybeStartOnboarding()
 }
 
 void boot()

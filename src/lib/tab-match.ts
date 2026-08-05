@@ -67,3 +67,40 @@ export function matchTabsToBookmarks<B extends Matchable & { id: string }>(
   for (const list of map.values()) list.sort((a, b) => b.last - a.last)
   return { map, ghosts }
 }
+
+export interface VisitLike {
+  url?: string
+  visitCount?: number
+  lastVisitTime?: number
+}
+
+/** Acumula visitas del historial sobre el marcador más específico que las cubre. */
+export function aggregateVisitHeat<B extends Matchable & { url?: string }>(
+  items: readonly VisitLike[],
+  bms: readonly B[]
+): Map<string, { v: number; last: number }> {
+  const hostIdx = new Map<string, B[]>()
+  for (const b of bms) {
+    const host = b.mHost ?? ''
+    if (!hostIdx.has(host)) hostIdx.set(host, [])
+    hostIdx.get(host)?.push(b)
+  }
+  const agg = new Map<string, { v: number; last: number }>()
+  for (const it of items) {
+    if (!/^https?:/.test(it.url ?? '')) continue
+    let u: URL
+    try {
+      u = new URL(it.url ?? '')
+    } catch {
+      continue
+    }
+    const host = u.host.toLowerCase()
+    const best = bestBookmarkMatch(hostIdx.get(host) ?? [], host, normPath(u.pathname))
+    if (!best?.url) continue
+    const a = agg.get(best.url) ?? { v: 0, last: 0 }
+    a.v += Math.min(it.visitCount ?? 1, 50)
+    a.last = Math.max(a.last, it.lastVisitTime ?? 0)
+    agg.set(best.url, a)
+  }
+  return agg
+}
