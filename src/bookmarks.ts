@@ -1,3 +1,4 @@
+import { activePort } from './browser-port'
 import { app } from './bus'
 import { IS_EXT } from './env'
 import { t } from './i18n'
@@ -113,8 +114,7 @@ export async function safeOp(fn: () => Promise<unknown> | unknown): Promise<void
 }
 
 export async function loadTree(): Promise<RawBookmarkNode[]> {
-  if (IS_EXT && !S.demo) return chrome.bookmarks.getTree() as Promise<RawBookmarkNode[]>
-  return window.MOCK_TREE ?? []
+  return activePort().bookmarkTree()
 }
 
 export function folderOptions(excludeIds: Set<string> = new Set()): FolderOption[] {

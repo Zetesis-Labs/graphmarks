@@ -16,6 +16,7 @@ src/
   types.ts         tipos del dominio; declaraciones globales de window
   constants.ts     slots de color, hubs sintéticos, radios, límites
   env.ts           IS_EXT / HAS_STORAGE / HAS_SYNC + pestañas mock
+  browser-port.ts  puerto de datos: adaptadores chrome/mock (multinavegador.md)
   render.ts        pintado del canvas (sin lógica de dominio)
   graph/           build (topologías) · style (color/radio) · simulation · hit
   ui/              dom (refs tipadas) · dialog · menu · toast
@@ -50,10 +51,12 @@ Base de desarrollo del proyecto, en orden de autoridad:
    `lib/drop-rules.ts` (semántica de soltado), `lib/search-score.ts`
    (puntuación del buscador), `lib/session-shape.ts` (captura/restauración),
    `lib/tab-match.ts` (matching de pestañas), `lib/graph-shape.ts` (topología).
-2. **Puertos sobre las APIs del navegador.** `chrome.*` se toca solo desde los
-   adaptadores (`env.ts`, `lib/storage.ts`, `lib/sync-store.ts`) o desde la
-   cáscara del módulo dueño del recurso; la forma de las APIs de Chrome no se
-   filtra al modelo interno (los tipos crudos se traducen en la frontera).
+2. **Puertos sobre las APIs del navegador.** Las fuentes de datos (árbol,
+   pestañas, ventanas, historial) se consumen vía `browser-port.ts` — el
+   adaptador activo decide entre `chrome.*` y los datos de muestra (preview y
+   guía). Almacenamiento vía `lib/storage.ts`/`lib/sync-store.ts`. Eventos,
+   permisos y runtime viven en la cáscara del módulo dueño del recurso; la
+   forma de las APIs de Chrome no se filtra al modelo interno.
 3. **El aviso de complejidad de Biome es una alarma, no un ruido.** Si una
    función lo dispara, se descompone o se extrae su decisión — nunca se amplía.
 4. **Strategy por vista** (dirección estructural): lo que hoy son condicionales
