@@ -393,7 +393,16 @@ function drawNodeBody(n: GraphNode, r: number, col: string, k: number, kk: numbe
   } else if (n.type === 'folder' && n.subtype) {
     drawHubBody(n, col, kk)
   } else if (wantsFavicon && (icon?.ok || (n.url && S.favicons.get(n.url)?.ok) || !HAS_FAVICON_API)) {
-    drawFavicon(n, r, col, false, k, icon?.ok ? icon : undefined)
+    drawFavicon(n, r, col, !!n.unsaved, k, icon?.ok ? icon : undefined)
+  } else if (n.unsaved) {
+    // sin marcador que lo ancle: hueco y discontinuo, como los fantasmas
+    ctx.setLineDash([3 / kk, 2.5 / kk])
+    ctx.fillStyle = COLORS.page
+    ctx.fill()
+    ctx.lineWidth = 1.5 / kk
+    ctx.strokeStyle = col
+    ctx.stroke()
+    ctx.setLineDash([])
   } else {
     ctx.fillStyle = col
     ctx.fill()

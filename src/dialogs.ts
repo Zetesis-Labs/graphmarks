@@ -7,6 +7,7 @@ import { S } from './state'
 import { allTags, normTags, persistTags, setTags, tagsOf } from './tags'
 import type { DialogField, GraphNode } from './types'
 import { openDialog } from './ui/dialog'
+import { toast } from './ui/toast'
 
 export function folderSelectField(name: string, label: string, value: string, excludeIds?: Set<string>): DialogField {
   return {
@@ -108,6 +109,23 @@ export function promptAdopt(n: GraphNode): void {
       submitLabel: t('dlgSave')
     },
     v => void safeOp(() => adopt({ ...n, title: v.title ?? n.title }, v.dest ?? ''))
+  )
+}
+
+/** Guardado en lote de páginas del historial sin marcador. */
+export function promptSaveHistoryNodes(nodes: GraphNode[]): void {
+  if (!nodes.length) return
+  openDialog(
+    {
+      title: t('dlgSaveHistoryNodes', nodes.length),
+      fields: [folderSelectField('dest', t('fieldFolder'), folderOptions()[0]?.id ?? '')],
+      submitLabel: t('dlgSave')
+    },
+    v =>
+      void safeOp(async () => {
+        for (const n of nodes) await api.create({ parentId: v.dest ?? '', title: n.title, url: n.url })
+        toast(t('toastHistorySaved', nodes.length))
+      })
   )
 }
 

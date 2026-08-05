@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RawBookmarkNode } from '../types'
-import { bmCount, clusterDepth, hostPairs } from './graph-shape'
+import { bmCount, bookmarkUrlKeys, clusterDepth, hostPairs } from './graph-shape'
 
 const bm = (id: string): RawBookmarkNode => ({ id, title: id, url: `https://x.com/${id}` })
 const folder = (id: string, children: RawBookmarkNode[]): RawBookmarkNode => ({ id, title: id, children })
@@ -9,6 +9,21 @@ describe('bmCount', () => {
   it('cuenta marcadores recursivamente', () => {
     expect(bmCount(folder('f', [bm('a'), folder('g', [bm('b'), bm('c')])]))).toBe(3)
     expect(bmCount(folder('vacia', []))).toBe(0)
+  })
+})
+
+describe('bookmarkUrlKeys', () => {
+  it('recoge las claves canónicas de todo el árbol', () => {
+    const tree = [
+      folder('raiz', [
+        { id: 'a', title: 'a', url: 'https://a.com/x?utm_source=tw' },
+        folder('sub', [{ id: 'b', title: 'b', url: 'https://b.com/' }])
+      ])
+    ]
+    const keys = bookmarkUrlKeys(tree)
+    expect(keys.has('https://a.com/x')).toBe(true)
+    expect(keys.has('https://b.com/')).toBe(true)
+    expect(keys.size).toBe(2)
   })
 })
 

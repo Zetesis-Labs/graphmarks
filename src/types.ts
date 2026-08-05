@@ -58,6 +58,8 @@ export interface GraphNode extends SimulationNodeDatum {
   history?: boolean
   historyVisits?: number
   lastVisitTime?: number
+  /** Página del historial sin marcador que la cubra: candidata al triaje. */
+  unsaved?: boolean
 }
 
 export type LinkKind = 'tree' | 'host' | 'history'
@@ -202,6 +204,7 @@ export interface ExportPayload {
   folderPrefs?: FolderPreferences
   historyRange?: HistoryRange
   historyGrouping?: HistoryGrouping
+  historyMuted?: string[]
 }
 
 declare global {

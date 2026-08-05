@@ -18,7 +18,8 @@ export function exportData(): void {
     sessions: S.savedSessions,
     folderPrefs: S.folderPrefs,
     historyRange: S.historyRange,
-    historyGrouping: S.historyGrouping
+    historyGrouping: S.historyGrouping,
+    historyMuted: [...S.historyMuted]
   }
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })
   const a = document.createElement('a')
@@ -48,6 +49,10 @@ async function applyImport(data: ExportPayload): Promise<void> {
   if (data.historyGrouping) {
     S.historyGrouping = data.historyGrouping
     await saveStore('historyGrouping', S.historyGrouping)
+  }
+  if (Array.isArray(data.historyMuted)) {
+    S.historyMuted = new Set(data.historyMuted)
+    await saveStore('historyMuted', [...S.historyMuted])
   }
   if (Array.isArray(data.sessions)) {
     const known = new Set(S.savedSessions.map(s => s.id))

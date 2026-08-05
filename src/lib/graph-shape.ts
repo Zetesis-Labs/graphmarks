@@ -1,6 +1,20 @@
 import type { RawBookmarkNode } from '../types'
+import { canonicalUrl } from './utils'
 
 /** Forma del grafo: decisiones puras sobre el árbol de marcadores. */
+
+/** Claves canónicas de todas las URLs guardadas — la base del triaje del historial. */
+export function bookmarkUrlKeys(tree: readonly RawBookmarkNode[]): Set<string> {
+  const keys = new Set<string>()
+  const walk = (items: readonly RawBookmarkNode[]): void => {
+    for (const it of items) {
+      if (it.url) keys.add(canonicalUrl(it.url))
+      else if (it.children) walk(it.children)
+    }
+  }
+  walk(tree)
+  return keys
+}
 
 export const bmCount = (n: RawBookmarkNode): number =>
   n.url ? 1 : (n.children ?? []).reduce((s, c) => s + bmCount(c), 0)

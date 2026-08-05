@@ -1,7 +1,7 @@
 import { app } from './bus'
 import { SERIES_VARS, VIEW_KEYS } from './constants'
 import { members } from './graph/build'
-import { historyRangeLabel, historyRangeMenu, setHistoryRange } from './history-view'
+import { historyRangeLabel, historyRangeMenu, setHistoryRange, setHistoryUnsavedOnly } from './history-view'
 import { t } from './i18n'
 import { closeSubgraph, zoomToNodes } from './interactions'
 import { saveStore } from './lib/storage'
@@ -70,6 +70,15 @@ export function buildLegend(): void {
       clear.title = t('historyClearFilter')
       clear.addEventListener('click', () => void setHistoryRange({ preset: '24h' }))
       legendEl.appendChild(clear)
+    }
+    const unsavedCount = S.allBms.filter(n => n.unsaved).length
+    if (unsavedCount || S.historyUnsavedOnly) {
+      const triage = document.createElement('button')
+      triage.className = S.historyUnsavedOnly ? 'chip active' : 'chip'
+      triage.textContent = `☆ ${t('historyUnsavedChip')} · ${unsavedCount}`
+      triage.title = t('historyUnsavedTitle')
+      triage.addEventListener('click', () => void setHistoryUnsavedOnly(!S.historyUnsavedOnly))
+      legendEl.appendChild(triage)
     }
   }
 }
