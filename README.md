@@ -106,7 +106,7 @@ sobre los marcadores:
   cabecera) poda el grafo a los marcadores con pestaña abierta y sus
   carpetas/hubs — tu sesión de navegación proyectada sobre la topología.
   El estado del filtro se recuerda entre pestañas y sesiones, funciona en
-  las tres vistas, y el grafo se replantea solo al abrir o cerrar pestañas
+  las cuatro vistas, y el grafo se replantea solo al abrir o cerrar pestañas
   mientras está activo.
 - **Filtro por ventana**: con varias ventanas abiertas aparece el chip «⊞»,
   que permite ver las pestañas de todas, solo la ventana actual o una
@@ -139,6 +139,16 @@ sutil en los muy usados) refleja cuánto lo has visitado en los últimos 45
 días — ves enfriarse lo que ya no usas. El análisis es local y se cachea 30
 minutos.
 
+La vista **Historial** convierte además las páginas visitadas en un grafo
+propio. Puedes elegir la última hora, hoy, 24 horas, 7/30 días o una franja
+exacta, y agrupar por dominio o por sesiones de navegación (cortes de más de
+30 minutos sin actividad). Cuando Chrome conserva el referente de la visita,
+una flecha enlaza la página de origen con la que abriste después, y las
+variantes de una misma URL (trackers `utm_*`, orden de parámetros, fragmentos)
+se funden en un solo nodo. La consulta trae todas las URLs del intervalo (el
+corte real lo pone la retención de Chrome, 90 días) y se cachea un minuto en
+memoria.
+
 ## Layout manual
 
 Arrastrar un nodo lo **fija** donde lo sueltes (queda marcado con un punto) y
@@ -157,6 +167,9 @@ El conmutador de la cabecera cambia la topología del grafo:
   marcador → «Etiquetas…»; en una carpeta → «Etiquetar contenido…» (bulk).
 - **Dominios** — agrupación automática por dominio (github.com, example.dev…),
   sin edición: es una vista derivada.
+- **Historial** — URLs abiertas en una franja de tiempo configurable, agrupadas
+  por dominio o por sesión y conectadas por las transiciones reales que expone
+  Chrome.
 
 Las etiquetas son una capa propia de GraphMarks (Chrome no las soporta):
 se guardan con la URL como clave — sobreviven a renombrados y movimientos de
@@ -175,7 +188,7 @@ Abre `newtab.html` directamente en el navegador: sin la API de Chrome usa
 datos de ejemplo (`mock-data.js`, `seed-tags.js` y pestañas simuladas), con
 la edición funcionando en memoria. Dentro de la extensión lee tus marcadores
 reales vía `chrome.bookmarks` y se actualiza solo cuando añades, mueves o
-borras marcadores. Parámetros útiles para desarrollo: `?view=tags|domains|folders`
+borras marcadores. Parámetros útiles para desarrollo: `?view=tags|domains|folders|history`
 y `?filter=open`.
 
 Tema claro y oscuro automáticos según el sistema. Sin dependencias externas en

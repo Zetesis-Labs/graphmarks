@@ -37,6 +37,7 @@ function exitSearchMode(): void {
 
 function nodeKind(n: GraphNode): string {
   if (n.type === 'ghost') return t('kindTab')
+  if (n.history) return t('kindHistory')
   if (n.type === 'bm') return S.openTabs.has(n.id) ? t('kindOpen') : t('kindBookmark')
   if (n.subtype === 'tag') return t('kindTag')
   return t('kindFolder')

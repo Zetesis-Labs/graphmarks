@@ -1,12 +1,14 @@
 import { app } from './bus'
 import { SERIES_VARS, VIEW_KEYS } from './constants'
 import { members } from './graph/build'
+import { historyRangeLabel, historyRangeMenu, setHistoryRange } from './history-view'
 import { t } from './i18n'
 import { closeSubgraph, zoomToNodes } from './interactions'
 import { saveStore } from './lib/storage'
 import { S } from './state'
 import type { Cluster, ViewMode } from './types'
 import { legendEl, listPanel, listToggle, viewsEl } from './ui/dom'
+import { showMenu } from './ui/menu'
 
 function clusterDotColor(c: Cluster): string {
   const raw = S.byId.get(c.id)?.raw
@@ -18,7 +20,7 @@ function clusterDotColor(c: Cluster): string {
 
 export function buildViews(): void {
   viewsEl.replaceChildren()
-  for (const [mode, key] of Object.entries(VIEW_KEYS) as Array<[ViewMode, 'viewFolders']>) {
+  for (const [mode, key] of Object.entries(VIEW_KEYS) as Array<[ViewMode, (typeof VIEW_KEYS)[ViewMode]]>) {
     const b = document.createElement('button')
     b.textContent = t(key)
     b.classList.toggle('active', mode === S.viewMode)
@@ -50,35 +52,25 @@ export function buildLegend(): void {
   })
   legendEl.appendChild(all)
 
-  for (const c of S.clusters) {
-    const chip = document.createElement('button')
-    chip.className = 'chip'
-    const dot = document.createElement('span')
-    dot.className = 'dot'
-    dot.style.background = clusterDotColor(c)
-    const name = document.createElement('span')
-    name.textContent = c.title
-    const n = document.createElement('span')
-    n.className = 'n'
-    n.textContent = String(c.count)
-    chip.append(dot, name, n)
-    chip.addEventListener('mouseenter', () => {
-      const hub = S.byId.get(c.id)
-      if (!hub) return
-      S.focusSet = new Set(members(hub).map(x => x.id))
-      app.requestDraw()
+  if (S.viewMode === 'history') {
+    const range = document.createElement('button')
+    range.className = 'chip active'
+    range.textContent = `◷ ${historyRangeLabel()} · ${S.allBms.length} ▾`
+    range.title = t('historyRangeTitle')
+    range.addEventListener('click', ev => {
+      ev.stopPropagation() // que el clic no llegue al cierre global del menú
+      const rect = range.getBoundingClientRect()
+      showMenu(rect.left, rect.bottom + 6, historyRangeMenu())
     })
-    chip.addEventListener('mouseleave', () => {
-      if (!S.searchQuery) {
-        S.focusSet = null
-        app.requestDraw()
-      } else app.applySearch(S.searchQuery)
-    })
-    chip.addEventListener('click', () => {
-      const hub = S.byId.get(c.id)
-      if (hub) zoomToNodes(members(hub), 90)
-    })
-    legendEl.appendChild(chip)
+    legendEl.appendChild(range)
+    if (S.historyRange.preset === 'custom') {
+      const clear = document.createElement('button')
+      clear.className = 'chip'
+      clear.textContent = '✕'
+      clear.title = t('historyClearFilter')
+      clear.addEventListener('click', () => void setHistoryRange({ preset: '24h' }))
+      legendEl.appendChild(clear)
+    }
   }
 }
 

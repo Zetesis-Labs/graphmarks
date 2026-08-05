@@ -6,6 +6,7 @@ import { addGhostNodes, buildGraph, pruneToOpen, rebuildNeighbors } from './grap
 import { applyFolderPresentation } from './graph/presentation'
 import { simulation, startSimulation } from './graph/simulation'
 import { computeHistory } from './history'
+import { buildHistoryGraph, invalidateHistoryGraph } from './history-view'
 import { localizeDom, t } from './i18n'
 import { initCanvasInteractions, resetZoom, zoomToNodes } from './interactions'
 import { buildLegend, buildList, buildViews, initPanels } from './panels'
@@ -37,8 +38,14 @@ readColors()
 function renderEmptyState(hasBookmarks: boolean): void {
   emptyEl.hidden = hasBookmarks
   if (hasBookmarks) return
-  const title = S.onlyOpen ? t('emptyNoOpenTitle') : t('emptyNoBookmarksTitle')
-  const body = S.onlyOpen ? t('emptyNoOpenBody') : t('emptyNoBookmarksBody')
+  const title =
+    S.viewMode === 'history'
+      ? t('emptyNoHistoryTitle')
+      : S.onlyOpen
+        ? t('emptyNoOpenTitle')
+        : t('emptyNoBookmarksTitle')
+  const body =
+    S.viewMode === 'history' ? t('emptyNoHistoryBody') : S.onlyOpen ? t('emptyNoOpenBody') : t('emptyNoBookmarksBody')
   const h = document.createElement('h2')
   h.textContent = title
   const p = document.createElement('p')
@@ -53,7 +60,9 @@ function renderEmptyState(hasBookmarks: boolean): void {
 export async function rebuild(fit: boolean): Promise<void> {
   const prevPos = new Map(S.nodes.map(n => [n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy }]))
   S.lastTree = await loadTree()
-  buildGraph(S.lastTree)
+  if (S.viewMode === 'history') {
+    if (!(await buildHistoryGraph())) return
+  } else buildGraph(S.lastTree)
   S.allBms = S.nodes.filter(n => n.type === 'bm')
 
   clearBadgeWarn()
@@ -63,9 +72,11 @@ export async function rebuild(fit: boolean): Promise<void> {
   S.lastOpenKey = sessionKey()
   updateBadge()
 
-  await computeHistory()
-  for (const n of S.allBms) n.heat = S.heatByUrl.get(n.url ?? '') ?? 0.35
-  addGhostNodes()
+  if (S.viewMode !== 'history') {
+    await computeHistory()
+    for (const n of S.allBms) n.heat = S.heatByUrl.get(n.url ?? '') ?? 0.35
+    addGhostNodes()
+  }
   rebuildNeighbors()
   applyFolderPresentation()
 
@@ -156,6 +167,14 @@ function installChromeListeners(): void {
   }
   chrome.windows?.onCreated?.addListener(rescanTabsSoon)
   chrome.windows?.onRemoved?.addListener(rescanTabsSoon)
+  chrome.history?.onVisited.addListener(() => {
+    invalidateHistoryGraph()
+    if (S.viewMode === 'history') rebuildSoon()
+  })
+  chrome.history?.onVisitRemoved.addListener(() => {
+    invalidateHistoryGraph()
+    if (S.viewMode === 'history') rebuildSoon()
+  })
 }
 
 function collectUrls(items: RawBookmarkNode[], acc: Set<string>): void {

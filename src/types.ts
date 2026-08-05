@@ -1,6 +1,6 @@
 import type { SimulationNodeDatum } from 'd3-force'
 
-export type ViewMode = 'folders' | 'tags' | 'domains'
+export type ViewMode = 'folders' | 'tags' | 'domains' | 'history'
 
 export type NodeType = 'bm' | 'folder' | 'ghost'
 export type NodeSubtype = 'tag' | 'domain' | 'ghosthub' | 'subdomain' | 'path'
@@ -54,9 +54,13 @@ export interface GraphNode extends SimulationNodeDatum {
   born?: number
   /** La rama está plegada y solo expone sus marcadores con pestaña abierta. */
   collapsed?: boolean
+  /** Nodo procedente del historial, no necesariamente guardado como marcador. */
+  history?: boolean
+  historyVisits?: number
+  lastVisitTime?: number
 }
 
-export type LinkKind = 'tree' | 'host'
+export type LinkKind = 'tree' | 'host' | 'history'
 
 export interface GraphLink {
   source: string | GraphNode
@@ -99,6 +103,13 @@ export interface FolderPreference {
   collapsed?: boolean
 }
 export type FolderPreferences = Record<string, FolderPreference>
+export type HistoryRangePreset = '1h' | 'today' | '24h' | '7d' | '30d' | 'custom'
+export interface HistoryRange {
+  preset: HistoryRangePreset
+  start?: number
+  end?: number
+}
+export type HistoryGrouping = 'domain' | 'session'
 export type WinFilter = 'all' | 'current' | number
 
 export interface SavedTab {
@@ -165,7 +176,7 @@ export interface DialogSelectOption {
 export interface DialogField {
   name: string
   label: string
-  type?: 'text' | 'url' | 'select' | 'tags'
+  type?: 'text' | 'url' | 'select' | 'tags' | 'datetime-local'
   value?: string
   placeholder?: string
   required?: boolean
@@ -189,6 +200,8 @@ export interface ExportPayload {
   layout?: PinnedLayouts
   sessions?: SavedSession[]
   folderPrefs?: FolderPreferences
+  historyRange?: HistoryRange
+  historyGrouping?: HistoryGrouping
 }
 
 declare global {

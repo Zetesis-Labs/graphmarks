@@ -50,7 +50,7 @@ function currentFocus(): Set<string> | null {
 /* Aristas curvas: control de la Bézier cuadrática desplazado en perpendicular.
    El signo es fijo para que la curva no cambie de lado entre frames. */
 function curveCtrl(sx: number, sy: number, tx: number, ty: number, kind: LinkKind): { cx: number; cy: number } {
-  const bend = kind === 'host' ? 0.22 : 0.12
+  const bend = kind === 'host' ? 0.22 : kind === 'history' ? 0.17 : 0.12
   return { cx: (sx + tx) / 2 - (ty - sy) * bend, cy: (sy + ty) / 2 + (tx - sx) * bend }
 }
 
@@ -188,14 +188,32 @@ function visibleCurve(sx: number, sy: number, tx: number, ty: number, cx: number
   )
 }
 
+function drawHistoryArrow(sx: number, sy: number, tx: number, ty: number, cx: number, cy: number, k: number): void {
+  const t = 0.72
+  const v = 1 - t
+  const x = v * v * sx + 2 * v * t * cx + t * t * tx
+  const y = v * v * sy + 2 * v * t * cy + t * t * ty
+  const dx = 2 * (v * (cx - sx) + t * (tx - cx))
+  const dy = 2 * (v * (cy - sy) + t * (ty - cy))
+  const angle = Math.atan2(dy, dx)
+  const size = 3.5 / k
+  ctx.beginPath()
+  ctx.moveTo(x + Math.cos(angle) * size, y + Math.sin(angle) * size)
+  ctx.lineTo(x + Math.cos(angle + 2.5) * size, y + Math.sin(angle + 2.5) * size)
+  ctx.lineTo(x + Math.cos(angle - 2.5) * size, y + Math.sin(angle - 2.5) * size)
+  ctx.closePath()
+  ctx.fillStyle = ctx.strokeStyle
+  ctx.fill()
+}
+
 function drawLinks(focus: Set<string> | null, k: number, vp: Viewport): void {
   for (const l of S.links) {
     const source = l.source as GraphNode
     const target = l.target as GraphNode
     const on = !!focus && focus.has(source.id) && focus.has(target.id)
-    ctx.globalAlpha = focus ? (on ? 0.9 : 0.04) : l.type === 'host' ? 0.14 : 0.3
+    ctx.globalAlpha = focus ? (on ? 0.9 : 0.04) : l.type === 'host' ? 0.14 : l.type === 'history' ? 0.24 : 0.3
     ctx.strokeStyle = on ? COLORS.ink2 : linkColor(l)
-    ctx.lineWidth = (l.type === 'host' ? 0.7 : 1) / k
+    ctx.lineWidth = (l.type === 'host' ? 0.7 : l.type === 'history' ? 0.9 : 1) / k
     const sx = source.x ?? 0
     const sy = source.y ?? 0
     const tx = target.x ?? 0
@@ -206,6 +224,7 @@ function drawLinks(focus: Set<string> | null, k: number, vp: Viewport): void {
     ctx.moveTo(sx, sy)
     ctx.quadraticCurveTo(cx, cy, tx, ty)
     ctx.stroke()
+    if (l.type === 'history' && k >= 0.45) drawHistoryArrow(sx, sy, tx, ty, cx, cy, k)
   }
 }
 
@@ -416,7 +435,7 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
 function drawParticles(focus: Set<string> | null, k: number, now: number, vp: Viewport): void {
   if (!S.openTabs.size) return
   for (const l of S.links) {
-    if (l.type === 'host') continue
+    if (l.type !== 'tree') continue
     const source = l.source as GraphNode
     const target = l.target as GraphNode
     const open = S.openTabs.has(target.id) ? target : S.openTabs.has(source.id) ? source : null

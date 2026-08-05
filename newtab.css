@@ -185,6 +185,11 @@ html, body {
   user-select: none;
 }
 .chip:hover { border-color: var(--baseline); color: var(--text-primary); }
+.chip.active {
+  color: var(--page);
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
 .chip .dot {
   width: 9px; height: 9px;
   border-radius: 50%;
