@@ -104,7 +104,7 @@ export async function refreshTabs(): Promise<void> {
   const key = sessionKey()
   const changed = key !== S.lastOpenKey
   S.lastOpenKey = key
-  if (changed && (S.onlyOpen || (S.showGhosts && S.viewMode !== 'history'))) {
+  if (changed && (S.onlyOpen || (S.showGhosts && S.strategy.supportsGhosts))) {
     app.rebuildSoon()
     return
   }

@@ -2,20 +2,16 @@ import { type D3DragEvent, drag as d3drag } from 'd3-drag'
 import { pointer, select } from 'd3-selection'
 import 'd3-transition'
 import { type D3ZoomEvent, zoom as d3zoom, zoomIdentity } from 'd3-zoom'
-import { adopt, api, safeOp } from './bookmarks'
 import { app } from './bus'
-import { OTHER_CONTAINER, UNTAGGED } from './constants'
+import { UNTAGGED } from './constants'
 import { customIcon, hasCustomColor, pickColor, pickIcon, removeColor, removeIcon } from './custom'
 import {
   confirmDelete,
-  confirmDeleteTag,
   promptAdopt,
   promptMove,
   promptNewBookmark,
   promptNewFolder,
   promptRename,
-  promptRenameTag,
-  promptSaveHistoryNodes,
   promptTagFolder,
   promptTags,
   promptUrl
@@ -24,16 +20,13 @@ import { members } from './graph/build'
 import { findAt, findFolderAt, findHit } from './graph/hit'
 import { simulation } from './graph/simulation'
 import { nodeColor, radius } from './graph/style'
-import { muteHistoryDomain } from './history-view'
 import { t } from './i18n'
 import { dropExclusions } from './lib/drop-rules'
 import { fitTransform } from './lib/fit'
 import { saveStore } from './lib/storage'
-import { short } from './lib/utils'
 import { invalidateGraphGeometry } from './render'
 import { pinsOfView, S, saveLayoutSoon } from './state'
 import { activateTab, closeTab } from './tabs'
-import { setTags, tagsOf } from './tags'
 import { exportData, importData } from './transfer'
 import type { GraphNode, MenuItem } from './types'
 import { canvas, dlg, menuEl, tooltip } from './ui/dom'
@@ -87,31 +80,7 @@ function dropExcludes(subject: GraphNode): Set<string> | null {
 }
 
 function handleDrop(subj: GraphNode, target: GraphNode): void {
-  if (ADOPTABLE.has(subj.type)) {
-    void safeOp(() =>
-      S.viewMode === 'tags' ? adopt(subj, OTHER_CONTAINER, target.tag ?? undefined) : adopt(subj, target.raw ?? '')
-    )
-    return
-  }
-  if (S.viewMode === 'tags') {
-    const url = subj.url ?? ''
-    const oldTags = tagsOf(url)
-    void safeOp(async () => {
-      await setTags(url, [...oldTags, target.tag ?? ''])
-      toast(t('toastTagAdded', target.tag ?? '', short(subj.title)), () => void setTags(url, oldTags))
-    })
-    return
-  }
-  const oldParent = subj.parentId
-  void safeOp(async () => {
-    await api.move(subj.raw ?? '', { parentId: target.raw ?? '' })
-    toast(
-      t('toastMovedTo', short(subj.title), short(target.title)),
-      oldParent
-        ? () => void safeOp(() => api.move(subj.raw ?? '', { parentId: S.byId.get(oldParent)?.raw ?? oldParent }))
-        : null
-    )
-  })
+  S.strategy.handleDrop(subj, target)
 }
 
 type DragEv = D3DragEvent<HTMLCanvasElement, unknown, GraphNode>
@@ -228,7 +197,7 @@ function setFolderMode(n: GraphNode, mode: 'subgraph' | 'collapsed' | null): voi
 
 function folderPresentationItems(n: GraphNode): MenuItem[] {
   const raw = n.raw
-  if (!raw || S.viewMode !== 'folders') return []
+  if (!raw || !S.strategy.supportsPresentation) return []
   const pref = S.folderPrefs[raw]
   const items: MenuItem[] = [{ sep: true }]
 
@@ -348,23 +317,6 @@ function backgroundMenu(): MenuItem[] {
   ]
 }
 
-/** Hubs de la vista historial: encuadrar, guardar lo no guardado y silenciar ruido. */
-function historyHubMenu(n: GraphNode): MenuItem[] {
-  const unsaved = members(n).filter(m => m.type === 'bm' && m.unsaved)
-  return [
-    { label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) },
-    ...(unsaved.length
-      ? [{ label: t('menuSaveUnsaved', unsaved.length), action: () => promptSaveHistoryNodes(unsaved) }]
-      : []),
-    ...(n.id.startsWith('hist-domain:')
-      ? [
-          { sep: true },
-          { label: t('menuMuteDomain', n.title), danger: true, action: () => void muteHistoryDomain(n.title) }
-        ]
-      : [])
-  ]
-}
-
 function goToOpenItems(n: GraphNode): MenuItem[] {
   const open = S.openTabs.get(n.id) ?? []
   if (!open.length) return []
@@ -422,32 +374,19 @@ function ghostMenu(n: GraphNode): MenuItem[] {
   ]
 }
 
-function tagHubMenu(n: GraphNode): MenuItem[] {
-  return [
-    { label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) },
-    ...(n.tag
-      ? [
-          { sep: true },
-          { label: t('menuRenameTag'), action: () => promptRenameTag(n.tag ?? '') },
-          {
-            label: t('menuDeleteTag', n.count ?? 0),
-            danger: true,
-            action: () => confirmDeleteTag(n.tag ?? '')
-          }
-        ]
-      : [])
-  ]
-}
-
 export function nodeMenu(n: GraphNode): MenuItem[] {
   if (n.type === 'bm' && n.history) return historyBmMenu(n)
   if (n.type === 'bm') return bmMenu(n)
   if (n.type === 'ghost') return ghostMenu(n)
-  if (n.subtype === 'ghosthub' || n.subtype === 'domain' || n.subtype === 'subdomain' || n.subtype === 'path') {
-    if (S.viewMode === 'history') return historyHubMenu(n)
-    return [{ label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) }]
+  if (
+    n.subtype === 'ghosthub' ||
+    n.subtype === 'domain' ||
+    n.subtype === 'subdomain' ||
+    n.subtype === 'path' ||
+    n.subtype === 'tag'
+  ) {
+    return S.strategy.hubMenu?.(n) ?? [{ label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) }]
   }
-  if (n.subtype === 'tag') return tagHubMenu(n)
   return [
     { label: t('menuFrameCluster'), action: () => zoomToNodes(members(n), 90) },
     { sep: true },

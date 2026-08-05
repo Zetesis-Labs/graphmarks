@@ -2,7 +2,7 @@ import { loadTree } from './bookmarks'
 import { app } from './bus'
 import { loadCustomizations } from './custom'
 import { IS_EXT } from './env'
-import { addGhostNodes, buildGraph, pruneToOpen, rebuildNeighbors } from './graph/build'
+import { addGhostNodes, pruneToOpen, rebuildNeighbors } from './graph/build'
 import { applyFolderPresentation } from './graph/presentation'
 import { simulation, startSimulation } from './graph/simulation'
 import { computeHistory } from './history'
@@ -39,14 +39,7 @@ readColors()
 function renderEmptyState(hasBookmarks: boolean): void {
   emptyEl.hidden = hasBookmarks
   if (hasBookmarks) return
-  const title =
-    S.viewMode === 'history'
-      ? t('emptyNoHistoryTitle')
-      : S.onlyOpen
-        ? t('emptyNoOpenTitle')
-        : t('emptyNoBookmarksTitle')
-  const body =
-    S.viewMode === 'history' ? t('emptyNoHistoryBody') : S.onlyOpen ? t('emptyNoOpenBody') : t('emptyNoBookmarksBody')
+  const { title, body } = S.strategy.emptyMessage()
   const h = document.createElement('h2')
   h.textContent = title
   const p = document.createElement('p')
@@ -94,7 +87,7 @@ export async function rebuild(fit: boolean): Promise<void> {
   S.lastTree = await loadTree()
   if (S.viewMode === 'history') {
     if (!(await buildHistoryGraph())) return
-  } else buildGraph(S.lastTree)
+  } else S.strategy.build(S.lastTree)
   S.allBms = S.nodes.filter(n => n.type === 'bm')
 
   clearBadgeWarn()
@@ -104,9 +97,11 @@ export async function rebuild(fit: boolean): Promise<void> {
   S.lastOpenKey = sessionKey()
   updateBadge()
 
-  if (S.viewMode !== 'history') {
+  if (S.strategy.supportsHeat) {
     await computeHistory()
     for (const n of S.allBms) n.heat = S.heatByUrl.get(n.url ?? '') ?? 0.35
+  }
+  if (S.strategy.supportsGhosts) {
     addGhostNodes()
   }
   rebuildNeighbors()

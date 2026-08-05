@@ -22,9 +22,9 @@ export function nodeColor(n: GraphNode): string {
     const own = S.customColors[`f:${n.raw}`]
     if (own) return own
   }
-  if (n.type === 'bm' && S.viewMode === 'folders') {
-    const parent = customOf(n.folderId ?? undefined)
-    if (parent) return parent
+  if (n.type === 'bm') {
+    const custom = S.strategy.bmColor?.(n)
+    if (custom) return custom
   }
   if (n.type === 'folder' && n.cluster !== n.id && !S.clusterOf.get(n.cluster ?? '')) return COLORS.muted
   return clusterColor(n.cluster)
