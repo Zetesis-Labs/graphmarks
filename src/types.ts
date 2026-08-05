@@ -52,6 +52,8 @@ export interface GraphNode extends SimulationNodeDatum {
   heat?: number
   /** timestamp de nacimiento: anima la entrada del nodo y luego se limpia */
   born?: number
+  /** La rama está plegada y solo expone sus marcadores con pestaña abierta. */
+  collapsed?: boolean
 }
 
 export type LinkKind = 'tree' | 'host'
@@ -92,6 +94,11 @@ export interface RawBookmarkNode {
 export type TagsMap = Record<string, string[]>
 export type PinMap = Record<string, { x: number; y: number }>
 export type PinnedLayouts = Partial<Record<ViewMode, PinMap>>
+export interface FolderPreference {
+  subgraph?: boolean
+  collapsed?: boolean
+}
+export type FolderPreferences = Record<string, FolderPreference>
 export type WinFilter = 'all' | 'current' | number
 
 export interface SavedTab {
@@ -136,7 +143,7 @@ export interface FolderOption {
   depth: number
 }
 
-export type HitAux = { type: 'sat'; tab: TabInfo } | { type: 'plus' }
+export type HitAux = { type: 'sat'; tab: TabInfo } | { type: 'plus' } | { type: 'back' }
 
 export interface HitResult {
   node: GraphNode | null
@@ -181,6 +188,7 @@ export interface ExportPayload {
   tags?: TagsMap
   layout?: PinnedLayouts
   sessions?: SavedSession[]
+  folderPrefs?: FolderPreferences
 }
 
 declare global {

@@ -12,7 +12,11 @@ const CATALOGS: Record<string, Record<string, string>> = { es, en }
  */
 function pickCatalog(): Record<string, string> {
   const lang = (
-    typeof chrome !== 'undefined' && chrome.i18n?.getUILanguage ? chrome.i18n.getUILanguage() : navigator.language
+    typeof chrome !== 'undefined' && chrome.i18n?.getUILanguage
+      ? chrome.i18n.getUILanguage()
+      : typeof navigator !== 'undefined'
+        ? navigator.language
+        : 'en'
   )
     .slice(0, 2)
     .toLowerCase()

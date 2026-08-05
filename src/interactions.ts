@@ -32,7 +32,7 @@ import { activateTab, closeTab } from './tabs'
 import { setTags, tagsOf } from './tags'
 import { exportData, importData } from './transfer'
 import type { GraphNode, MenuItem } from './types'
-import { canvas, menuEl, tooltip } from './ui/dom'
+import { canvas, dlg, menuEl, tooltip } from './ui/dom'
 import { hideMenu, showMenu } from './ui/menu'
 import { toast } from './ui/toast'
 
@@ -187,6 +187,80 @@ function pinItem(n: GraphNode): MenuItem[] {
   return pinsOfView()[n.id] ? [{ label: t('menuUnpin'), action: () => unpinNode(n) }] : []
 }
 
+/* --- subgrafos y carpetas plegadas --- */
+
+async function rebuildAround(id?: string): Promise<void> {
+  await app.rebuild(false)
+  const n = id ? S.byId.get(id) : undefined
+  zoomToNodes(n ? members(n) : S.nodes, n ? 90 : 80)
+}
+
+export function closeSubgraph(): void {
+  if (!S.activeSubgraph) return
+  S.activeSubgraph = null
+  void rebuildAround()
+}
+
+function openSubgraph(n: GraphNode): void {
+  if (!n.raw || S.activeSubgraph === n.raw) {
+    zoomToNodes(members(n), 90)
+    return
+  }
+  S.activeSubgraph = n.raw
+  void rebuildAround(n.id)
+}
+
+function expandCollapsed(n: GraphNode): void {
+  if (!n.raw) return
+  S.expandedFolders.add(n.raw)
+  void rebuildAround(n.id)
+}
+
+function setFolderMode(n: GraphNode, mode: 'subgraph' | 'collapsed' | null): void {
+  const raw = n.raw
+  if (!raw) return
+  if (mode) S.folderPrefs[raw] = { [mode]: true }
+  else delete S.folderPrefs[raw]
+  S.expandedFolders.delete(raw)
+  if (S.activeSubgraph === raw && mode !== 'subgraph') S.activeSubgraph = null
+  void (async () => {
+    await saveStore('folderPrefs', S.folderPrefs)
+    await rebuildAround()
+  })()
+}
+
+function folderPresentationItems(n: GraphNode): MenuItem[] {
+  const raw = n.raw
+  if (!raw || S.viewMode !== 'folders') return []
+  const pref = S.folderPrefs[raw]
+  const items: MenuItem[] = [{ sep: true }]
+
+  if (pref?.subgraph) {
+    if (S.activeSubgraph !== raw) items.push({ label: t('menuOpenSubgraph'), action: () => openSubgraph(n) })
+    else items.push({ label: t('menuBackToGraph'), action: () => closeSubgraph() })
+    items.push({ label: t('menuRemoveSubgraph'), action: () => setFolderMode(n, null) })
+  } else {
+    items.push({ label: t('menuMakeSubgraph'), action: () => setFolderMode(n, 'subgraph') })
+  }
+
+  if (pref?.collapsed) {
+    if (n.collapsed) items.push({ label: t('menuExpandTemporarily'), action: () => expandCollapsed(n) })
+    else {
+      items.push({
+        label: t('menuCollapseNow'),
+        action: () => {
+          S.expandedFolders.delete(raw)
+          void rebuildAround()
+        }
+      })
+    }
+    items.push({ label: t('menuDontCollapseByDefault'), action: () => setFolderMode(n, null) })
+  } else {
+    items.push({ label: t('menuCollapseByDefault'), action: () => setFolderMode(n, 'collapsed') })
+  }
+  return items
+}
+
 /* --- tooltip --- */
 
 function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof findHit>['aux']): void {
@@ -197,6 +271,9 @@ function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof find
   if (aux?.type === 'sat') {
     title = aux.tab.title
     sub = t('tooltipGoToTab')
+  } else if (aux?.type === 'back') {
+    title = t('menuBackToGraph')
+    sub = t('tooltipBackToGraph')
   } else if (aux?.type === 'plus') {
     title = t('tooltipOpenNewTab')
     sub = n.url ?? ''
@@ -208,7 +285,10 @@ function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof find
   } else if (n.type === 'ghost') {
     sub = n.url ?? ''
   } else {
-    sub = t('tooltipBookmarks', n.count ?? 0)
+    const pref = n.raw ? S.folderPrefs[n.raw] : undefined
+    if (pref?.subgraph && S.activeSubgraph !== n.raw) sub = t('tooltipOpenSubgraph', n.count ?? 0)
+    else if (n.collapsed) sub = t('tooltipExpandFolder', n.count ?? 0)
+    else sub = t('tooltipBookmarks', n.count ?? 0)
   }
   const span = (cls: string, text: string): HTMLSpanElement => {
     const el = document.createElement('span')
@@ -234,6 +314,7 @@ function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof find
 
 function backgroundMenu(): MenuItem[] {
   return [
+    ...(S.activeSubgraph ? [{ label: t('menuBackToGraph'), action: () => closeSubgraph() }, { sep: true }] : []),
     { label: t('menuNewFolder'), action: () => promptNewFolder() },
     { label: t('menuNewBookmark'), action: () => promptNewBookmark() },
     { sep: true },
@@ -330,6 +411,7 @@ function nodeMenu(n: GraphNode): MenuItem[] {
     { label: t('menuCustomIcon'), action: () => pickIcon(n) },
     ...(customIcon(n) ? [{ label: t('menuCustomIconRemove'), action: () => void removeIcon(n) }] : []),
     ...pinItem(n),
+    ...folderPresentationItems(n),
     { sep: true },
     { label: t('menuDeleteFolder', n.count ?? 0), danger: true, action: () => confirmDelete(n) }
   ]
@@ -377,6 +459,10 @@ export function initCanvasInteractions(): void {
       void activateTab(h.aux.tab)
       return
     }
+    if (h.aux?.type === 'back') {
+      closeSubgraph()
+      return
+    }
     if (h.aux?.type === 'plus') {
       window.open(n.url ?? '')
       return
@@ -396,7 +482,9 @@ export function initCanvasInteractions(): void {
       else window.location.href = n.url ?? ''
       return
     }
-    zoomToNodes(members(n), 90)
+    if (n.raw && S.folderPrefs[n.raw]?.subgraph && S.activeSubgraph !== n.raw) openSubgraph(n)
+    else if (n.collapsed) expandCollapsed(n)
+    else zoomToNodes(members(n), 90)
   })
 
   canvas.addEventListener('dblclick', ev => {
@@ -409,6 +497,11 @@ export function initCanvasInteractions(): void {
     tooltip.hidden = true
     const n = findAt(ev.offsetX, ev.offsetY)
     showMenu(ev.clientX, ev.clientY, n ? nodeMenu(n) : backgroundMenu())
+  })
+
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Escape' || !S.activeSubgraph || !menuEl.hidden || dlg.open) return
+    closeSubgraph()
   })
 }
 

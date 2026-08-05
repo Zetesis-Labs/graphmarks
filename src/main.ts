@@ -3,6 +3,7 @@ import { app } from './bus'
 import { loadCustomizations } from './custom'
 import { IS_EXT } from './env'
 import { addGhostNodes, buildGraph, pruneToOpen, rebuildNeighbors } from './graph/build'
+import { applyFolderPresentation } from './graph/presentation'
 import { simulation, startSimulation } from './graph/simulation'
 import { computeHistory } from './history'
 import { localizeDom, t } from './i18n'
@@ -66,6 +67,7 @@ export async function rebuild(fit: boolean): Promise<void> {
   for (const n of S.allBms) n.heat = S.heatByUrl.get(n.url ?? '') ?? 0.35
   addGhostNodes()
   rebuildNeighbors()
+  applyFolderPresentation()
 
   if (S.onlyOpen) {
     pruneToOpen()
