@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.5...v0.7.0) (2026-08-05)
+
+
+### Features
+
+* añadir subgrafos y carpetas colapsadas ([#19](https://github.com/Zetesis-Labs/graphmarks/issues/19)) ([0815a9d](https://github.com/Zetesis-Labs/graphmarks/commit/0815a9dc6ef68d6d16909a856415bfe405bdf4bc))
+* guía de primer uso sobre un grafo de muestra ([2d37a18](https://github.com/Zetesis-Labs/graphmarks/commit/2d37a184512bdb738657d7576957c094c3fc6cd4))
+* vista de historial como grafo navegable ([#20](https://github.com/Zetesis-Labs/graphmarks/issues/20)) ([c312cb1](https://github.com/Zetesis-Labs/graphmarks/commit/c312cb121fe2a66b4280be5a342364b1653f0dd2))
+
+
+### Performance Improvements
+
+* suavizar navegación del grafo ([d38869b](https://github.com/Zetesis-Labs/graphmarks/commit/d38869bafccd0c1790c05c89a6e03b38a948f215))
+
 ## [0.6.5](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.4...v0.6.5) (2026-08-02)
 
 
