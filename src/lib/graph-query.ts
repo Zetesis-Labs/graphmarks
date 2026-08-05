@@ -16,6 +16,17 @@ export interface GraphQueryAST {
   limit?: number
 }
 
+function normalizeStateValue(val: string): string {
+  const norm = val.toLowerCase()
+  if (['open', 'abierta', 'abiertas'].includes(norm)) return 'open'
+  if (['ghost', 'fantasma', 'fantasmas'].includes(norm)) return 'ghost'
+  if (['unsaved', 'sin-guardar'].includes(norm)) return 'unsaved'
+  if (['pinned', 'fijado', 'fijados'].includes(norm)) return 'pinned'
+  if (['folder', 'carpeta', 'carpetas'].includes(norm)) return 'folder'
+  if (['bm', 'bookmark', 'marcador', 'marcadores'].includes(norm)) return 'bm'
+  return norm
+}
+
 function parseVisitsCondition(val: string): QueryCondition {
   if (val.startsWith('>')) {
     return { field: 'visits', operator: 'gt', value: Number.parseInt(val.slice(1), 10) || 0 }
@@ -44,7 +55,7 @@ function processQueryToken(key: string | undefined, val: string, ast: GraphQuery
   } else if (key === 'domain') {
     ast.conditions.push({ field: 'domain', operator: 'contains', value: val.toLowerCase() })
   } else if (key === 'is') {
-    ast.conditions.push({ field: 'is', operator: 'eq', value: val.toLowerCase() })
+    ast.conditions.push({ field: 'is', operator: 'eq', value: normalizeStateValue(val) })
   } else if (key === 'visits') {
     ast.conditions.push(parseVisitsCondition(val))
   } else if (!key) {
@@ -56,14 +67,33 @@ export function parseGraphQuery(rawQuery: string): GraphQueryAST {
   const ast: GraphQueryAST = { conditions: [] }
   if (!rawQuery.trim()) return ast
 
+  const tokens: Array<{ key?: string; val: string }> = []
   const regex = /(?:(\w+):)?(?:"([^"]+)"|'([^']+)'|(\S+))/g
   let match: RegExpExecArray | null = regex.exec(rawQuery)
 
   while (match !== null) {
     const key = match[1]?.toLowerCase()
     const val = match[2] ?? match[3] ?? match[4] ?? ''
+    if (val) tokens.push({ key, val })
     match = regex.exec(rawQuery)
-    if (val) processQueryToken(key, val, ast)
+  }
+
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]
+    if (!tok) continue
+
+    // Soporte para "is open", "is abierta", "is fantasma" sin dos puntos
+    if (!tok.key && tok.val.toLowerCase() === 'is' && i + 1 < tokens.length) {
+      const nextTok = tokens[i + 1]
+      if (nextTok && !nextTok.key) {
+        const normState = normalizeStateValue(nextTok.val)
+        ast.conditions.push({ field: 'is', operator: 'eq', value: normState })
+        i++
+        continue
+      }
+    }
+
+    processQueryToken(tok.key, tok.val, ast)
   }
 
   return ast
@@ -101,19 +131,41 @@ export function evaluateGraphQuery(
   return matched
 }
 
+function isOpenTabNode(node: GraphNode, openTabs: Map<string, unknown>): boolean {
+  if (node.type === 'ghost') return true
+  if (openTabs.has(node.id)) return true
+  if (node.raw && (openTabs.has(`b${node.raw}`) || openTabs.has(node.raw))) return true
+  if (node.url) {
+    for (const openList of openTabs.values()) {
+      if (Array.isArray(openList) && openList.some((t: { url?: string }) => t?.url === node.url)) return true
+    }
+  }
+  return false
+}
+
 function matchStateCondition(
   state: string,
   node: GraphNode,
   openTabs: Map<string, unknown>,
   pinnedIds: Set<string>
 ): boolean {
-  if (state === 'open') return openTabs.has(node.id) || node.type === 'ghost'
-  if (state === 'unsaved') return !!node.unsaved
-  if (state === 'ghost') return node.type === 'ghost'
-  if (state === 'pinned') return pinnedIds.has(node.id)
-  if (state === 'folder') return node.type === 'folder'
-  if (state === 'bm' || state === 'bookmark') return node.type === 'bm'
-  return true
+  const normState = normalizeStateValue(state)
+  switch (normState) {
+    case 'open':
+      return isOpenTabNode(node, openTabs)
+    case 'unsaved':
+      return !!node.unsaved
+    case 'ghost':
+      return node.type === 'ghost'
+    case 'pinned':
+      return pinnedIds.has(node.id) || (node.raw ? pinnedIds.has(node.raw) : false)
+    case 'folder':
+      return node.type === 'folder'
+    case 'bm':
+      return node.type === 'bm'
+    default:
+      return true
+  }
 }
 
 function matchCondition(

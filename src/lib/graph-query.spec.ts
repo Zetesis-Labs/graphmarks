@@ -74,4 +74,17 @@ describe('graph-query', () => {
     expect(res).toHaveLength(1)
     expect(res[0]?.id).toBe('3')
   })
+
+  it('soporta la sintaxis "is open" sin dos puntos y alias en español "is abiertas"', () => {
+    const ast1 = parseGraphQuery('is open')
+    expect(ast1.conditions).toEqual([{ field: 'is', operator: 'eq', value: 'open' }])
+
+    const ast2 = parseGraphQuery('is abiertas')
+    expect(ast2.conditions).toEqual([{ field: 'is', operator: 'eq', value: 'open' }])
+
+    const openTabsMap = new Map([['1', [{ url: 'https://github.com/graphmarks' }]]])
+    const res = evaluateGraphQuery(ast1, index, openTabsMap)
+    expect(res.map(n => n.id)).toContain('1')
+    expect(res.map(n => n.id)).toContain('3') // ghost es pestaña abierta
+  })
 })
