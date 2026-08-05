@@ -1,22 +1,145 @@
 import { select } from 'd3-selection'
 import { app } from './bus'
+import { promptNewBookmark, promptNewFolder } from './dialogs'
 import { members } from './graph/build'
 import { nodeColor } from './graph/style'
 import { t } from './i18n'
-import { zoom, zoomToNodes } from './interactions'
+import { unpinAll, zoom, zoomToNodes } from './interactions'
+import { type CommandItem, matchCommands, registerCommands } from './lib/command-palette'
 import { matchesQuery, type SearchCandidate, scoreCandidate } from './lib/search-score'
+import { saveStore } from './lib/storage'
+import { buildViews } from './panels'
 import { S } from './state'
 import { activateTab, toggleOnlyOpen } from './tabs'
-import type { GraphNode } from './types'
+import { exportData, importData } from './transfer'
+import type { GraphNode, ViewMode } from './types'
 import { canvas, dlg, resultsEl, searchBox } from './ui/dom'
+import { strategies } from './view-strategy'
 
 const MAX_RESULTS = 12
 const DWELL_MS = 3000
 
 let searchItems: GraphNode[] = []
+let commandItems: CommandItem[] = []
+let isCommandMode = false
 let searchSel = -1
 let dwellTimer: ReturnType<typeof setTimeout> | undefined
 let preSearchTf: typeof S.tf | null = null
+
+export function setupDefaultCommands(): void {
+  registerCommands([
+    {
+      id: 'cmd-new-folder',
+      titleKey: 'cmdNewFolder',
+      icon: '📁',
+      keywords: ['nueva', 'carpeta', 'folder', 'new'],
+      action: () => promptNewFolder()
+    },
+    {
+      id: 'cmd-new-bookmark',
+      titleKey: 'cmdNewBookmark',
+      icon: '🔖',
+      keywords: ['nuevo', 'marcador', 'bookmark', 'add'],
+      action: () => promptNewBookmark()
+    },
+    {
+      id: 'cmd-view-folders',
+      titleKey: 'cmdViewFolders',
+      icon: '📂',
+      keywords: ['carpetas', 'folders', 'vista'],
+      action: () => switchViewMode('folders')
+    },
+    {
+      id: 'cmd-view-tags',
+      titleKey: 'cmdViewTags',
+      icon: '🏷️',
+      keywords: ['tags', 'etiquetas', 'vista'],
+      action: () => switchViewMode('tags')
+    },
+    {
+      id: 'cmd-view-domains',
+      titleKey: 'cmdViewDomains',
+      icon: '🌐',
+      keywords: ['dominios', 'domains', 'vista'],
+      action: () => switchViewMode('domains')
+    },
+    {
+      id: 'cmd-view-history',
+      titleKey: 'cmdViewHistory',
+      icon: '◷',
+      keywords: ['historial', 'history', 'vista'],
+      action: () => switchViewMode('history')
+    },
+    {
+      id: 'cmd-toggle-only-open',
+      titleKey: 'cmdToggleOnlyOpen',
+      icon: '⧉',
+      shortcut: 'º',
+      keywords: ['abiertas', 'open', 'filtro'],
+      action: () => void toggleOnlyOpen()
+    },
+    {
+      id: 'cmd-toggle-ghosts',
+      titleKey: 'cmdToggleGhosts',
+      icon: '👻',
+      keywords: ['fantasmas', 'ghosts', 'pestañas'],
+      action: () => {
+        void (async () => {
+          S.showGhosts = !S.showGhosts
+          await saveStore('ghosts', S.showGhosts)
+          app.rebuildSoon()
+        })()
+      }
+    },
+    {
+      id: 'cmd-unpin-all',
+      titleKey: 'cmdUnpinAll',
+      icon: '📍',
+      keywords: ['desfijar', 'unpin', 'posiciones', 'layout'],
+      action: () => unpinAll()
+    },
+    {
+      id: 'cmd-frame-all',
+      titleKey: 'cmdFrameAll',
+      icon: '⌂',
+      keywords: ['encuadrar', 'frame', 'todo', 'zoom'],
+      action: () => zoomToNodes(S.nodes, 80)
+    },
+    {
+      id: 'cmd-export',
+      titleKey: 'cmdExport',
+      icon: '📤',
+      keywords: ['exportar', 'export', 'json'],
+      action: () => exportData()
+    },
+    {
+      id: 'cmd-import',
+      titleKey: 'cmdImport',
+      icon: '📥',
+      keywords: ['importar', 'import', 'json'],
+      action: () => importData()
+    },
+    {
+      id: 'cmd-show-guide',
+      titleKey: 'cmdShowGuide',
+      icon: '💡',
+      keywords: ['guia', 'tour', 'ayuda', 'guide'],
+      action: () => app.startGuide()
+    }
+  ])
+}
+
+function switchViewMode(mode: ViewMode): void {
+  if (S.viewMode === mode) return
+  S.activeSubgraph = null
+  S.expandedFolders.clear()
+  S.viewMode = mode
+  S.strategy = strategies[mode]
+  void saveStore('view', mode)
+  buildViews()
+  void app.rebuild(false)
+  zoomToNodes(S.nodes, 80)
+}
 
 function enterSearchMode(): void {
   if (preSearchTf) return
@@ -33,6 +156,8 @@ function exitSearchMode(): void {
   S.searchFocusNode = null
   resultsEl.hidden = true
   searchItems = []
+  commandItems = []
+  isCommandMode = false
   searchSel = -1
 }
 
@@ -66,7 +191,39 @@ function buildResults(q: string): GraphNode[] {
     .map(x => x.n)
 }
 
+function renderCommandResults(): void {
+  resultsEl.replaceChildren()
+  resultsEl.hidden = !commandItems.length
+  commandItems.forEach((cmd, i) => {
+    const li = document.createElement('li')
+    li.classList.toggle('sel', i === searchSel)
+    const icon = document.createElement('span')
+    icon.className = 'dot'
+    icon.textContent = cmd.icon
+    icon.style.background = 'transparent'
+    icon.style.textAlign = 'center'
+    icon.style.fontSize = '12px'
+    const tEl = document.createElement('span')
+    tEl.className = 'rt'
+    tEl.textContent = t(cmd.titleKey)
+    const kind = document.createElement('span')
+    kind.className = 'kind'
+    kind.textContent = cmd.shortcut ?? t('cmdCategory')
+    li.append(icon, tEl, kind)
+    li.addEventListener('mousedown', ev => {
+      ev.preventDefault()
+      runCommandResult(cmd)
+    })
+    li.addEventListener('mouseenter', () => selectResult(i, false))
+    resultsEl.appendChild(li)
+  })
+}
+
 function renderResults(): void {
+  if (isCommandMode) {
+    renderCommandResults()
+    return
+  }
   resultsEl.replaceChildren()
   resultsEl.hidden = !searchItems.length
   searchItems.forEach((n, i) => {
@@ -97,15 +254,25 @@ function selectResult(i: number, scroll = true): void {
   ;[...resultsEl.children].forEach((li, j) => {
     li.classList.toggle('sel', j === i)
   })
+  if (isCommandMode) {
+    if (scroll) resultsEl.children[i]?.scrollIntoView({ block: 'nearest' })
+    return
+  }
   const n = searchItems[i] ?? null
   S.searchFocusNode = n
   clearTimeout(dwellTimer)
   if (n) {
-    // quedarse 3 s sobre un resultado focaliza ese nodo en el grafo
     dwellTimer = setTimeout(() => zoomToNodes([n], 150), DWELL_MS)
     if (scroll) resultsEl.children[i]?.scrollIntoView({ block: 'nearest' })
   }
   app.requestDraw()
+}
+
+function runCommandResult(cmd: CommandItem | undefined): void {
+  if (!cmd) return
+  clearSearch()
+  searchBox.blur()
+  void cmd.action()
 }
 
 function runResult(n: GraphNode | undefined): void {
@@ -134,6 +301,19 @@ function runResult(n: GraphNode | undefined): void {
 }
 
 export function applySearch(q: string): void {
+  if (q.trim().startsWith('>')) {
+    isCommandMode = true
+    S.searchQuery = q.trim()
+    S.focusSet = null
+    S.searchFocusNode = null
+    commandItems = matchCommands(q, t)
+    searchSel = commandItems.length ? 0 : -1
+    renderResults()
+    app.requestDraw()
+    return
+  }
+
+  isCommandMode = false
   S.searchQuery = q.trim().toLowerCase()
   if (!S.searchQuery) {
     S.focusSet = null
@@ -163,6 +343,7 @@ export function clearSearch(): void {
 }
 
 export function initSearch(): void {
+  setupDefaultCommands()
   searchBox.addEventListener('input', e => applySearch((e.target as HTMLInputElement).value))
   searchBox.addEventListener('focus', () => {
     enterSearchMode()
@@ -179,13 +360,15 @@ export function initSearch(): void {
     }, 150)
   })
   searchBox.addEventListener('keydown', e => {
+    const listLen = isCommandMode ? commandItems.length : searchItems.length
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
-      if (!searchItems.length) return
+      if (!listLen) return
       const d = e.key === 'ArrowDown' ? 1 : -1
-      selectResult((searchSel + d + searchItems.length) % searchItems.length)
+      selectResult((searchSel + d + listLen) % listLen)
     } else if (e.key === 'Enter') {
-      runResult(searchItems[searchSel] ?? searchItems[0])
+      if (isCommandMode) runCommandResult(commandItems[searchSel] ?? commandItems[0])
+      else runResult(searchItems[searchSel] ?? searchItems[0])
     } else if (e.key === 'Escape') {
       clearSearch()
       searchBox.blur()

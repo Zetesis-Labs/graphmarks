@@ -235,5 +235,20 @@
   "menuCustomIcon": "Custom icon…",
   "menuCustomIconRemove": "Remove custom icon",
   "menuFolderColor": "Folder color…",
-  "menuFolderColorRemove": "Remove custom color"
+  "menuFolderColorRemove": "Remove custom color",
+  "cmdCategory": "Commands",
+  "cmdHint": "type > for commands",
+  "cmdNewFolder": "New Folder",
+  "cmdNewBookmark": "New Bookmark",
+  "cmdViewFolders": "Switch to Folders view",
+  "cmdViewTags": "Switch to Tags view",
+  "cmdViewDomains": "Switch to Domains view",
+  "cmdViewHistory": "Switch to History view",
+  "cmdToggleOnlyOpen": "Toggle Open Only filter",
+  "cmdToggleGhosts": "Toggle unattached tabs (ghosts)",
+  "cmdUnpinAll": "Unpin all manual node layouts",
+  "cmdFrameAll": "Frame entire graph",
+  "cmdExport": "Export bookmarks to JSON",
+  "cmdImport": "Import bookmarks from JSON",
+  "cmdShowGuide": "View interactive tour"
 }

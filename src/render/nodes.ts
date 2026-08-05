@@ -194,6 +194,13 @@ function drawNodeBody(n: GraphNode, r: number, col: string, k: number, kk: numbe
 
 function drawNodeBadges(n: GraphNode, r: number, k: number, kk: number, col: string): void {
   drawFolderPresentation(n, r, k, col)
+  if (n === S.keyboardFocusNode) {
+    ctx.beginPath()
+    ctx.arc(n.x ?? 0, n.y ?? 0, r + 7 / kk, 0, Math.PI * 2)
+    ctx.lineWidth = 2.5 / kk
+    ctx.strokeStyle = COLORS.ink
+    ctx.stroke()
+  }
   if (S.openTabs.has(n.id)) {
     ctx.beginPath()
     ctx.arc(n.x ?? 0, n.y ?? 0, r + 3.5 / kk, 0, Math.PI * 2)
