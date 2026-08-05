@@ -1,10 +1,18 @@
 import { IS_EXT, MOCK_TABS } from './env'
 import { t } from './i18n'
+import {
+  type CaptureTab,
+  type CaptureWindow,
+  planSplitSets,
+  planTabGroups,
+  shapeSessionWindows,
+  windowCreateSpec
+} from './lib/session-shape'
 import { loadChunked, saveChunked, syncUsage } from './lib/sync-store'
 import { short } from './lib/utils'
 import { S } from './state'
 import { ensureTabGroups } from './tabs'
-import type { SavedSession, SavedTab, SessionWindow } from './types'
+import type { SavedSession, SessionWindow } from './types'
 import { openDialog } from './ui/dialog'
 import { sessionsEl } from './ui/dom'
 import { showMenu } from './ui/menu'
@@ -60,16 +68,6 @@ function mockWindowsFromTabs(): WinLike[] {
   return [...byWin.values()]
 }
 
-/**
- * splitViewId es de solo lectura y su nombre puede variar entre versiones de
- * Chrome; aceptamos cualquier propiedad *split* con valor real.
- */
-function readSplitId(tab: Record<string, unknown>): number | null {
-  let splitId: number | null = null
-  for (const [k, v] of Object.entries(tab)) if (/split/i.test(k) && v != null && v !== -1) splitId = v as number
-  return splitId
-}
-
 export async function captureSession(name: string, winScope: Scope): Promise<SavedSession> {
   // las pestañas salen de tabs.query: es la vía que garantiza splitViewId
   // (los Tab de windows.getAll(populate) pueden venir sin ese campo)
@@ -92,45 +90,21 @@ export async function captureSession(name: string, winScope: Scope): Promise<Sav
   }
 
   const selfUrl = IS_EXT ? chrome.runtime.getURL('') : null
-  const windows: SessionWindow[] = []
-  for (const w of wins) {
-    if (winScope !== 'all' && w.id !== winScope) continue
-    const wTabs = allTabs ? allTabs.filter(t => t.windowId === w.id).sort((a, b) => a.index - b.index) : (w.tabs ?? [])
-    const groups: SessionWindow['groups'] = []
-    const gIndex = new Map<number, number>()
-    const tabs: SavedTab[] = []
-
-    for (const t of wTabs) {
-      const url = t.url ?? ''
-      if (!url) continue
-      if (selfUrl && url.startsWith(selfUrl)) continue // esta new tab
-      if (url.startsWith('chrome://newtab')) continue
-      let groupIdx: number | null = null
-      if (t.groupId != null && t.groupId !== -1) {
-        if (!gIndex.has(t.groupId)) {
-          const g = groupsById.get(t.groupId)
-          gIndex.set(t.groupId, groups.length)
-          groups.push({ title: g?.title ?? '', color: g?.color ?? 'grey', collapsed: !!g?.collapsed })
-        }
-        groupIdx = gIndex.get(t.groupId) ?? null
-      }
-      tabs.push({
-        url,
-        title: t.title ?? url,
-        pinned: !!t.pinned,
-        active: !!t.active,
-        groupIdx,
-        splitId: readSplitId(t as unknown as Record<string, unknown>)
-      })
-    }
-    if (!tabs.length) continue
-    windows.push({
-      bounds: { left: w.left, top: w.top, width: w.width, height: w.height, state: w.state },
-      tabs,
-      groups
-    })
-  }
-
+  const captureWins: CaptureWindow[] = wins.map(w => ({
+    id: w.id,
+    left: w.left,
+    top: w.top,
+    width: w.width,
+    height: w.height,
+    state: w.state,
+    tabs: (allTabs
+      ? allTabs.filter(t => t.windowId === w.id).sort((a, b) => a.index - b.index)
+      : (w.tabs ?? [])) as unknown as CaptureTab[]
+  }))
+  const windows = shapeSessionWindows(captureWins, groupsById, winScope, [
+    ...(selfUrl ? [selfUrl] : []),
+    'chrome://newtab'
+  ])
   return { id: `s${Date.now().toString(36)}`, name, created: new Date().toISOString(), windows }
 }
 
@@ -140,13 +114,10 @@ async function restoreGroups(w: SessionWindow, win: chrome.windows.Window, creat
   // agrupar aunque falte el permiso tabGroups: chrome.tabs.group no lo
   // necesita; solo los metadatos (título/color/plegado) lo requieren
   if (!chrome.tabs.group) return
-  const byGroup = new Map<number, number[]>()
-  w.tabs.forEach((t, i) => {
-    const tab = created[i]
-    if (t.groupIdx == null || !tab?.id) return
-    if (!byGroup.has(t.groupIdx)) byGroup.set(t.groupIdx, [])
-    byGroup.get(t.groupIdx)?.push(tab.id)
-  })
+  const byGroup = planTabGroups(
+    w.tabs,
+    created.map(c => c.id ?? null)
+  )
   for (const [gi, tabIds] of byGroup) {
     try {
       const gid = await chrome.tabs.group({ tabIds, createProperties: { windowId: win.id } })
@@ -176,15 +147,10 @@ async function restoreGroups(w: SessionWindow, win: chrome.windows.Window, creat
  * usará sola; mientras, el par queda seleccionado para rehacerlo en un clic.
  */
 async function restoreSplits(w: SessionWindow, win: chrome.windows.Window, created: chrome.tabs.Tab[]): Promise<void> {
-  const bySplit = new Map<number, number[]>()
-  w.tabs.forEach((t, i) => {
-    const tab = created[i]
-    if (t.splitId == null || !tab?.id) return
-    if (!bySplit.has(t.splitId)) bySplit.set(t.splitId, [])
-    bySplit.get(t.splitId)?.push(tab.id)
-  })
-  for (const ids of bySplit.values()) {
-    if (ids.length < 2) continue
+  for (const ids of planSplitSets(
+    w.tabs,
+    created.map(c => c.id ?? null)
+  )) {
     const maybeSplit = (chrome.tabs as unknown as { split?: (o: { tabIds: number[] }) => Promise<unknown> }).split
     if (typeof maybeSplit === 'function') {
       try {
@@ -206,57 +172,56 @@ async function restoreSplits(w: SessionWindow, win: chrome.windows.Window, creat
   }
 }
 
+async function pinRestoredTabs(w: SessionWindow, created: chrome.tabs.Tab[]): Promise<void> {
+  for (let i = 0; i < w.tabs.length; i++) {
+    const tab = created[i]
+    if (!w.tabs[i]?.pinned || !tab?.id) continue
+    try {
+      await chrome.tabs.update(tab.id, { pinned: true })
+    } catch {
+      /* seguir */
+    }
+  }
+}
+
+async function activateSavedTab(w: SessionWindow, created: chrome.tabs.Tab[]): Promise<void> {
+  const ai = w.tabs.findIndex(t => t.active)
+  const activeTab = ai >= 0 ? created[ai] : undefined
+  if (!activeTab?.id) return
+  try {
+    await chrome.tabs.update(activeTab.id, { active: true })
+  } catch {
+    /* seguir */
+  }
+}
+
+async function restoreWindow(w: SessionWindow): Promise<void> {
+  const props: chrome.windows.CreateData = windowCreateSpec(
+    w.bounds,
+    w.tabs.map(t => t.url)
+  )
+  let win: chrome.windows.Window | undefined
+  try {
+    win = await chrome.windows.create(props)
+  } catch (e) {
+    toast(t('toastWindowError', (e as Error).message))
+    return
+  }
+  if (!win) return
+  const created = win.tabs ?? []
+  await pinRestoredTabs(w, created)
+  await restoreGroups(w, win, created)
+  await activateSavedTab(w, created)
+  await restoreSplits(w, win, created)
+}
+
 export async function restoreSession(s: SavedSession): Promise<void> {
   if (!IS_EXT) {
     toast(t('toastPreviewRestore', s.windows.length, sessionTabCount(s)))
     return
   }
   if (s.windows.some(w => w.groups.length)) await ensureTabGroups()
-
-  for (const w of s.windows) {
-    const props: chrome.windows.CreateData = { url: w.tabs.map(t => t.url) }
-    if (w.bounds.state === 'maximized' || w.bounds.state === 'fullscreen') {
-      props.state = w.bounds.state as chrome.windows.windowStateEnum
-    } else if (Number.isFinite(w.bounds.left)) {
-      props.left = w.bounds.left
-      props.top = w.bounds.top
-      props.width = w.bounds.width
-      props.height = w.bounds.height
-    }
-    let win: chrome.windows.Window | undefined
-    try {
-      win = await chrome.windows.create(props)
-    } catch (e) {
-      toast(t('toastWindowError', (e as Error).message))
-      continue
-    }
-    if (!win) continue
-    const created = win.tabs ?? []
-
-    for (let i = 0; i < w.tabs.length; i++) {
-      const tab = created[i]
-      if (w.tabs[i]?.pinned && tab?.id) {
-        try {
-          await chrome.tabs.update(tab.id, { pinned: true })
-        } catch {
-          /* seguir */
-        }
-      }
-    }
-    await restoreGroups(w, win, created)
-
-    const ai = w.tabs.findIndex(t => t.active)
-    const activeTab = ai >= 0 ? created[ai] : undefined
-    if (activeTab?.id) {
-      try {
-        await chrome.tabs.update(activeTab.id, { active: true })
-      } catch {
-        /* seguir */
-      }
-    }
-    await restoreSplits(w, win, created)
-  }
-
+  for (const w of s.windows) await restoreWindow(w)
   toast(countSplits(s) ? t('toastSessionRestoredSplit', short(s.name)) : t('toastSessionRestored', short(s.name)))
 }
 

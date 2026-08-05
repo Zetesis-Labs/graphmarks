@@ -69,6 +69,8 @@ export interface AppState {
   expandedFolders: Set<string>
   historyRange: HistoryRange
   historyGrouping: HistoryGrouping
+  /** Guía en marcha: el grafo y las pestañas salen de los datos de muestra. */
+  demo: boolean
 }
 
 export const S: AppState = {
@@ -107,7 +109,8 @@ export const S: AppState = {
   activeSubgraph: null,
   expandedFolders: new Set(),
   historyRange: { preset: '24h' },
-  historyGrouping: 'domain'
+  historyGrouping: 'domain',
+  demo: false
 }
 
 export const COLORS: Colors = {

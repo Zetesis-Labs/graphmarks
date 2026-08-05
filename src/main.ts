@@ -9,6 +9,7 @@ import { computeHistory } from './history'
 import { buildHistoryGraph, invalidateHistoryGraph } from './history-view'
 import { localizeDom, t } from './i18n'
 import { initCanvasInteractions, resetZoom, zoomToNodes } from './interactions'
+import { maybeStartOnboarding, startOnboarding } from './onboarding'
 import { buildLegend, buildList, buildViews, initPanels } from './panels'
 import { invalidateGraphGeometry, requestDraw } from './render'
 import { applySearch, clearSearch, initSearch } from './search'
@@ -53,6 +54,37 @@ function renderEmptyState(hasBookmarks: boolean): void {
   emptyEl.replaceChildren(h, p)
 }
 
+type PrevPos = Map<string, { x?: number; y?: number; vx?: number; vy?: number }>
+
+/** Conservar posiciones entre rebuilds; lo nuevo nace junto a su padre y los pins mandan. */
+function placeNodes(prevPos: PrevPos): void {
+  for (const n of S.nodes) {
+    const p = prevPos.get(n.id)
+    if (p) Object.assign(n, p)
+    else n.born = performance.now()
+  }
+  for (const n of S.nodes) {
+    if (n.x === undefined && n.parentId) {
+      const par = S.byId.get(n.parentId)
+      if (par?.x !== undefined) {
+        n.x = par.x + (Math.random() - 0.5) * 50
+        n.y = (par.y ?? 0) + (Math.random() - 0.5) * 50
+      }
+    }
+  }
+  // en la guía, el layout fijado del usuario no debe tocar los nodos de muestra
+  const pins = S.demo ? {} : (S.pinned[S.viewMode] ?? {})
+  for (const n of S.nodes) {
+    const p = pins[n.id]
+    if (p) {
+      n.x = p.x
+      n.y = p.y
+      n.fx = p.x
+      n.fy = p.y
+    }
+  }
+}
+
 /**
  * Reconstruye el grafo conservando posiciones: editar no debe provocar un
  * re-layout brusco. Los nodos nuevos nacen junto a su carpeta.
@@ -85,32 +117,7 @@ export async function rebuild(fit: boolean): Promise<void> {
     S.clusters = S.clusters.filter(c => S.byId.has(c.id))
   }
 
-  for (const n of S.nodes) {
-    const p = prevPos.get(n.id)
-    if (p) Object.assign(n, p)
-    else n.born = performance.now()
-  }
-  for (const n of S.nodes) {
-    if (n.x === undefined && n.parentId) {
-      const par = S.byId.get(n.parentId)
-      if (par?.x !== undefined) {
-        n.x = par.x + (Math.random() - 0.5) * 50
-        n.y = (par.y ?? 0) + (Math.random() - 0.5) * 50
-      }
-    }
-  }
-  // layout manual: aplicar posiciones fijadas de esta vista
-  const pins = S.pinned[S.viewMode] ?? {}
-  for (const n of S.nodes) {
-    const p = pins[n.id]
-    if (p) {
-      n.x = p.x
-      n.y = p.y
-      n.fx = p.x
-      n.fy = p.y
-    }
-  }
-
+  placeNodes(prevPos)
   invalidateGraphGeometry()
 
   renderEmptyState(S.nodes.some(n => n.type === 'bm'))
@@ -140,6 +147,7 @@ app.requestDraw = requestDraw
 app.zoomToNodes = zoomToNodes
 app.applySearch = applySearch
 app.clearSearch = clearSearch
+app.startGuide = startOnboarding
 
 function installChromeListeners(): void {
   if (!IS_EXT) return
@@ -219,6 +227,8 @@ async function boot(): Promise<void> {
       zoomToNodes(S.nodes, 80, 0)
     }
   }
+
+  void maybeStartOnboarding()
 }
 
 void boot()

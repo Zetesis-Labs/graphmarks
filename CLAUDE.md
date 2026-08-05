@@ -37,6 +37,28 @@ src/
 
 - **TypeScript estricto** — `strict`, `noUncheckedIndexedAccess`,
   `noImplicitOverride`, `isolatedModules`. Sin `as any`.
+
+## Metodología
+
+Base de desarrollo del proyecto, en orden de autoridad:
+
+1. **Functional core, imperative shell.** Toda decisión no trivial vive en una
+   función pura con test (en `lib/` o en un módulo puro tipo `history-range`);
+   la cáscara (DOM, canvas, `chrome.*`) solo cablea datos hacia dentro y
+   efectos hacia fuera. Al tocar un módulo de cáscara, extrae sus decisiones
+   antes de ampliarlo. Ejemplos del patrón: `lib/fit.ts` (encuadre de zoom),
+   `lib/drop-rules.ts` (semántica de soltado), `lib/search-score.ts`
+   (puntuación del buscador), `lib/session-shape.ts` (captura/restauración),
+   `lib/tab-match.ts` (matching de pestañas), `lib/graph-shape.ts` (topología).
+2. **Puertos sobre las APIs del navegador.** `chrome.*` se toca solo desde los
+   adaptadores (`env.ts`, `lib/storage.ts`, `lib/sync-store.ts`) o desde la
+   cáscara del módulo dueño del recurso; la forma de las APIs de Chrome no se
+   filtra al modelo interno (los tipos crudos se traducen en la frontera).
+3. **El aviso de complejidad de Biome es una alarma, no un ruido.** Si una
+   función lo dispara, se descompone o se extrae su decisión — nunca se amplía.
+4. **Strategy por vista** (dirección estructural): lo que hoy son condicionales
+   de `viewMode` repartidos debe converger en un objeto por vista
+   (build/menú/drop/estilo), para que añadir una vista no toque 15 archivos.
 - **ESM** (`"type": "module"`), **pnpm**, **Biome** para lint y formato
   (no ESLint/Prettier): 2 espacios, 120 columnas, comillas simples, sin
   punto y coma innecesario, sin comas finales.

@@ -2,9 +2,10 @@ import { app } from './bus'
 import { IS_EXT, MOCK_TABS } from './env'
 import { t } from './i18n'
 import { saveStore } from './lib/storage'
-import { bestBookmarkMatch, normPath, short } from './lib/utils'
+import { matchTabsToBookmarks, summarizeWindows } from './lib/tab-match'
+import { short } from './lib/utils'
 import { S } from './state'
-import type { GraphNode, TabInfo, WindowSummary, WinFilter } from './types'
+import type { GraphNode, TabInfo, WinFilter } from './types'
 import { tabcountEl, winchipEl } from './ui/dom'
 import { showMenu } from './ui/menu'
 import { toast } from './ui/toast'
@@ -61,7 +62,9 @@ interface OpenTabsResult {
 
 export async function computeOpenTabs(bms: GraphNode[]): Promise<OpenTabsResult> {
   let tabs: RawTab[]
-  if (IS_EXT) {
+  if (S.demo) {
+    tabs = MOCK_TABS
+  } else if (IS_EXT) {
     if (!chrome.tabs) {
       tabStatus(t('badgeNoTabsPermission'), true)
       return { map: new Map(), ghosts: [] }
@@ -77,51 +80,11 @@ export async function computeOpenTabs(bms: GraphNode[]): Promise<OpenTabsResult>
   }
 
   // inventario de ventanas (para el chip ⊞) antes de filtrar
-  const byWin = new Map<number, WindowSummary>()
-  for (const t of tabs) {
-    if (!/^https?:/.test(t.url ?? '')) continue
-    const winId = t.windowId ?? 0
-    const w = byWin.get(winId) ?? { id: winId, count: 0, title: '' }
-    w.count++
-    if (t.active) w.title = t.title ?? w.title
-    byWin.set(winId, w)
-  }
-  S.winList = [...byWin.values()].sort((a, b) => a.id - b.id)
+  S.winList = summarizeWindows(tabs)
   updateWinChip()
   const wf = effectiveWinFilter()
   if (wf !== null) tabs = tabs.filter(t => t.windowId === wf)
-
-  const map = new Map<string, TabInfo[]>()
-  const ghosts: TabInfo[] = []
-  for (const t of tabs) {
-    if (!/^https?:/.test(t.url ?? '')) continue
-    let u: URL
-    try {
-      u = new URL(t.url ?? '')
-    } catch {
-      continue
-    }
-    const host = u.host.toLowerCase()
-    const path = normPath(u.pathname)
-    const best = bestBookmarkMatch(bms, host, path)
-    const info: TabInfo = {
-      id: t.id ?? 0,
-      windowId: t.windowId ?? 0,
-      title: t.title ?? t.url ?? '',
-      url: t.url ?? '',
-      host: u.host,
-      active: !!t.active,
-      last: t.lastAccessed ?? 0
-    }
-    if (best) {
-      if (!map.has(best.id)) map.set(best.id, [])
-      map.get(best.id)?.push(info)
-    } else {
-      ghosts.push(info)
-    }
-  }
-  for (const list of map.values()) list.sort((a, b) => b.last - a.last)
-  return { map, ghosts }
+  return matchTabsToBookmarks(tabs, bms)
 }
 
 function openKey(map: Map<string, TabInfo[]>): string {

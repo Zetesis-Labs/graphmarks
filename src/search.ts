@@ -4,6 +4,7 @@ import { members } from './graph/build'
 import { nodeColor } from './graph/style'
 import { t } from './i18n'
 import { zoom, zoomToNodes } from './interactions'
+import { matchesQuery, type SearchCandidate, scoreCandidate } from './lib/search-score'
 import { S } from './state'
 import { activateTab, toggleOnlyOpen } from './tabs'
 import type { GraphNode } from './types'
@@ -43,38 +44,22 @@ function nodeKind(n: GraphNode): string {
   return t('kindFolder')
 }
 
-/** Puntuación: prefijo > substring en título > URL > tags; la sesión abierta sube. */
-function scoreNode(n: GraphNode, query: string): number {
-  const title = n.title.toLowerCase()
-  const url = (n.url ?? '').toLowerCase()
-  const tagText = (n.tags ?? []).map(t => `#${t}`).join(' ')
-  if (!query) {
-    // sin texto: la sesión abierta primero, luego lo más usado
-    if (n.type === 'bm' && S.openTabs.has(n.id)) return 90
-    if (n.type === 'ghost') return 80
-    if (n.type === 'bm') return (n.heat ?? 0) * 50
-    return -1
+function candidateOf(n: GraphNode): SearchCandidate {
+  return {
+    title: n.title,
+    url: n.url ?? '',
+    tags: n.tags ?? [],
+    tagHub: n.subtype === 'tag' ? (n.tag ?? null) : null,
+    kind: n.type === 'ghost' ? 'ghost' : n.type === 'bm' ? 'bm' : 'folder',
+    isOpen: n.type === 'bm' && S.openTabs.has(n.id),
+    heat: n.heat ?? 0
   }
-  if (query.startsWith('#')) {
-    const tq = query.slice(1)
-    if (n.subtype === 'tag' && n.tag?.includes(tq)) return 100
-    if ((n.tags ?? []).some(t => t.includes(tq))) return 60
-    return -1
-  }
-  let s = -1
-  if (title.startsWith(query)) s = 100
-  else if (title.includes(query)) s = 70
-  else if (url.includes(query)) s = 50
-  else if (tagText.includes(query)) s = 40
-  if (s > 0 && n.type === 'bm' && S.openTabs.has(n.id)) s += 15
-  if (s > 0 && n.type === 'folder') s -= 10
-  return s
 }
 
 function buildResults(q: string): GraphNode[] {
   const query = q.trim().toLowerCase()
   return S.nodes
-    .map(n => ({ n, s: scoreNode(n, query) }))
+    .map(n => ({ n, s: scoreCandidate(candidateOf(n), query) }))
     .filter(x => x.s > 0)
     .sort((a, b) => b.s - a.s)
     .slice(0, MAX_RESULTS)
@@ -153,21 +138,12 @@ export function applySearch(q: string): void {
   if (!S.searchQuery) {
     S.focusSet = null
   } else {
-    const tagQuery = S.searchQuery.startsWith('#') ? S.searchQuery.slice(1) : null
     const s = new Set<string>()
     for (const n of S.nodes) {
-      let hit: boolean
-      if (tagQuery !== null) {
-        hit = n.subtype === 'tag' ? !!n.tag?.includes(tagQuery) : (n.tags ?? []).some(t => t.includes(tagQuery))
-      } else {
-        const hay = `${n.title} ${n.url ?? ''} ${(n.tags ?? []).map(t => `#${t}`).join(' ')}`.toLowerCase()
-        hit = hay.includes(S.searchQuery)
-      }
-      if (hit) {
-        s.add(n.id)
-        for (const h of n.hubs ?? []) s.add(h)
-        if (n.parentId) s.add(n.parentId)
-      }
+      if (!matchesQuery(candidateOf(n), S.searchQuery)) continue
+      s.add(n.id)
+      for (const h of n.hubs ?? []) s.add(h)
+      if (n.parentId) s.add(n.parentId)
     }
     S.focusSet = s
   }
