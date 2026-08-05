@@ -17,6 +17,7 @@ import type {
   TabInfo,
   TagsMap,
   ViewMode,
+  ViewStrategy,
   WindowSummary,
   WinFilter
 } from './types'
@@ -32,6 +33,7 @@ export interface FaviconRecord {
  */
 export interface AppState {
   viewMode: ViewMode
+  strategy: ViewStrategy
   tagsMap: TagsMap
   nodes: GraphNode[]
   links: GraphLink[]
@@ -77,8 +79,11 @@ export interface AppState {
   demo: boolean
 }
 
+import { strategies } from './view-strategy'
+
 export const S: AppState = {
   viewMode: 'folders',
+  strategy: strategies.folders,
   tagsMap: {},
   nodes: [],
   links: [],
@@ -160,6 +165,8 @@ export function saveLayoutSoon(): void {
 export async function loadPersistedState(params: URLSearchParams): Promise<void> {
   const view = params.get('view') ?? (await loadStore<string>('view', 'folders'))
   S.viewMode = view === 'tags' || view === 'domains' || view === 'history' ? view : 'folders'
+  const { strategies } = await import('./view-strategy')
+  S.strategy = strategies[S.viewMode]
   S.onlyOpen = params.get('filter') === 'open' || (await loadStore('onlyOpen', false))
   S.showGhosts = await loadStore('ghosts', true)
   S.winFilter = await loadStore<WinFilter>('winFilter', 'all')

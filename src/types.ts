@@ -114,6 +114,35 @@ export interface HistoryRange {
 export type HistoryGrouping = 'domain' | 'session'
 export type WinFilter = 'all' | 'current' | number
 
+/**
+ * Strategy por vista: cada vista implementa este contrato en vez de repartir
+ * condicionales `viewMode === '...'` por todo el código.
+ */
+export interface ViewStrategy {
+  /** Construye nodos, links y clusters a partir del árbol de marcadores. */
+  build(tree: RawBookmarkNode[]): void
+  /** Maneja el soltado de un nodo sobre un destino. */
+  handleDrop(subject: GraphNode, target: GraphNode): void
+  /** ¿Es `n` un destino válido de drop en esta vista? */
+  isDropTarget(n: GraphNode): boolean
+  /** Menú contextual de un hub sintético (dominio/tag/ghosthub). undefined = genérico. */
+  hubMenu?(n: GraphNode): MenuItem[] | undefined
+  /** Color propio de un marcador según la semántica de la vista. undefined = default. */
+  bmColor?(n: GraphNode): string | undefined
+  /** Elementos extra para la leyenda de la cabecera. */
+  legendItems?(): HTMLElement[]
+  /** ¿Soporta nodos fantasma (pestañas sueltas)? */
+  supportsGhosts: boolean
+  /** ¿Se aplica la presentación de carpetas (subgrafos, colapsadas)? */
+  supportsPresentation: boolean
+  /** ¿Se computa el historial de calor sobre los nodos? */
+  supportsHeat: boolean
+  /** ¿Se añaden enlaces débiles entre marcadores del mismo dominio? */
+  hostLinks: boolean
+  /** Texto del estado vacío. */
+  emptyMessage(): { title: string; body: string }
+}
+
 export interface SavedTab {
   url: string
   title: string

@@ -56,8 +56,11 @@ function seedGraph(): void {
   S.openTabs = new Map([['bopen', [openTab]]])
 }
 
+import { strategies } from '../view-strategy'
+
 beforeEach(() => {
   S.viewMode = 'folders'
+  S.strategy = strategies.folders
   S.folderPrefs = {}
   S.activeSubgraph = null
   S.expandedFolders = new Set()

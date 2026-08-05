@@ -12,6 +12,7 @@ import type { GraphNode, TagsMap, ViewMode } from './types'
 import { canvas, listPanel, menuEl, resultsEl, searchBox, sessionsEl, tabcountEl, viewsEl } from './ui/dom'
 import { hideMenu, showMenu } from './ui/menu'
 import { isTourOpen, startTour, type TourStep } from './ui/tour'
+import { strategies } from './view-strategy'
 
 /**
  * Guía del primer uso: un modo demo sobre el grafo de muestra (window.MOCK_TREE)
@@ -32,6 +33,7 @@ async function enterDemo(): Promise<void> {
   S.demo = true
   S.onlyOpen = false
   S.viewMode = 'folders'
+  S.strategy = strategies.folders
   S.activeSubgraph = null
   S.tagsMap = { ...(window.SEED_TAGS ?? {}) }
   invalidateHistoryGraph()
@@ -43,6 +45,7 @@ async function exitDemo(): Promise<void> {
   if (!saved) return
   S.demo = false
   S.viewMode = saved.viewMode
+  S.strategy = strategies[saved.viewMode]
   S.onlyOpen = saved.onlyOpen
   S.tagsMap = saved.tagsMap
   saved = null
@@ -57,6 +60,7 @@ async function exitDemo(): Promise<void> {
 async function switchView(mode: ViewMode): Promise<void> {
   if (S.viewMode === mode) return
   S.viewMode = mode
+  S.strategy = strategies[mode]
   S.activeSubgraph = null
   buildViews()
   await app.rebuild(false)

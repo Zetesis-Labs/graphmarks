@@ -119,7 +119,7 @@ function scopeClusters(activeRoot?: GraphNode): void {
  * tengan pestañas abiertas; así el estado vivo sigue visible sin desplegarla.
  */
 export function applyFolderPresentation(): void {
-  if (S.viewMode !== 'folders') return
+  if (!S.strategy.supportsPresentation) return
 
   let activeRoot = S.activeSubgraph ? S.byId.get(S.activeSubgraph) : undefined
   if (S.activeSubgraph && (!activeRoot || !realFolder(activeRoot))) {

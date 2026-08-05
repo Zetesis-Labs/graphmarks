@@ -79,8 +79,7 @@ export function findFolderAt(px: number, py: number, exclude: Set<string> = new 
   let bestD = Infinity
   for (const n of S.nodes) {
     if (n.type !== 'folder' || exclude.has(n.id)) continue
-    if (S.viewMode === 'folders' && n.subtype) continue
-    if (S.viewMode === 'tags' && n.subtype !== 'tag') continue
+    if (!S.strategy.isDropTarget(n)) continue
     const d = Math.hypot((n.x ?? 0) - x, (n.y ?? 0) - y)
     if (d <= radius(n) + 10 / S.tf.k && d < bestD) {
       best = n

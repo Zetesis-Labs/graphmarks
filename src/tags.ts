@@ -6,7 +6,6 @@ import { loadStore, saveStore } from './lib/storage'
 import { normTags, tagBucket } from './lib/tag-utils'
 import { S } from './state'
 import type { TagsMap } from './types'
-import { toast } from './ui/toast'
 
 export function tagsOf(url: string): string[] {
   return S.tagsMap[url] ?? []
@@ -80,7 +79,7 @@ export async function persistTags(): Promise<void> {
       if (Object.keys(changed).length) await chrome.storage.sync.set(changed)
       return
     } catch (e) {
-      toast(t('toastSyncFallback', (e as Error).message ?? String(e)))
+      void import('./ui/toast').then(m => m.toast(t('toastSyncFallback', (e as Error).message ?? String(e))))
     }
   }
   await saveStore('tags', S.tagsMap)

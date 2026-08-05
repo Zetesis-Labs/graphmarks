@@ -126,7 +126,7 @@ function walkTree(
   }
 }
 
-function buildGraphFolders(tree: RawBookmarkNode[]): void {
+export function buildGraphFolders(tree: RawBookmarkNode[]): void {
   initCommon()
   const containers = tree[0]?.children ?? []
   const cutDepth = clusterDepth(containers.flatMap(c => c.children ?? []))
@@ -180,7 +180,7 @@ function flatBookmarks(tree: RawBookmarkNode[]): GraphNode[] {
   return out
 }
 
-function buildGraphTags(tree: RawBookmarkNode[]): void {
+export function buildGraphTags(tree: RawBookmarkNode[]): void {
   initCommon()
   const bms = flatBookmarks(tree)
   const hubCount = new Map<string, number>()
@@ -213,7 +213,7 @@ function buildGraphTags(tree: RawBookmarkNode[]): void {
   finishGraph(false)
 }
 
-function buildGraphDomains(tree: RawBookmarkNode[]): void {
+export function buildGraphDomains(tree: RawBookmarkNode[]): void {
   initCommon()
   const bms = flatBookmarks(tree)
   const groups = new Map<string, GraphNode[]>()
@@ -352,12 +352,6 @@ function attachDomainStructure(hid: string, dom: string, list: GraphNode[]): voi
       splitByPath(group, sid, hid, [hid, sid], '', 0)
     }
   }
-}
-
-export function buildGraph(tree: RawBookmarkNode[]): void {
-  if (S.viewMode === 'tags') buildGraphTags(tree)
-  else if (S.viewMode === 'domains') buildGraphDomains(tree)
-  else buildGraphFolders(tree)
 }
 
 /* --- fantasmas: pestañas sin marcador, agrupadas por dominio --- */

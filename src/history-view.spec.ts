@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('./graph/build', () => ({ loadFavicon: vi.fn() }))
+vi.mock('./graph/build', async importOriginal => ({
+  ...(await importOriginal<typeof import('./graph/build')>()),
+  loadFavicon: vi.fn()
+}))
 vi.mock('./ui/dialog', () => ({ openDialog: vi.fn() }))
 vi.mock('./ui/toast', () => ({ toast: vi.fn() }))
 
 import { MOCK_TABS } from './env'
 import { buildHistoryGraph, invalidateHistoryGraph } from './history-view'
 import { S } from './state'
+import { strategies } from './view-strategy'
 
 beforeEach(() => {
   S.viewMode = 'history'
+  S.strategy = strategies.history
   S.historyRange = { preset: '24h' }
   S.historyGrouping = 'domain'
   S.historyMuted = new Set()

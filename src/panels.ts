@@ -1,14 +1,13 @@
 import { app } from './bus'
 import { SERIES_VARS, VIEW_KEYS } from './constants'
 import { members } from './graph/build'
-import { historyRangeLabel, historyRangeMenu, setHistoryRange, setHistoryUnsavedOnly } from './history-view'
 import { t } from './i18n'
 import { closeSubgraph, zoomToNodes } from './interactions'
 import { saveStore } from './lib/storage'
 import { S } from './state'
 import type { Cluster, ViewMode } from './types'
 import { legendEl, listPanel, listToggle, viewsEl } from './ui/dom'
-import { showMenu } from './ui/menu'
+import { strategies } from './view-strategy'
 
 function clusterDotColor(c: Cluster): string {
   const raw = S.byId.get(c.id)?.raw
@@ -30,6 +29,7 @@ export function buildViews(): void {
         S.activeSubgraph = null
         S.expandedFolders.clear()
         S.viewMode = mode
+        S.strategy = strategies[mode]
         await saveStore('view', mode)
         buildViews()
         await app.rebuild(false)
@@ -52,34 +52,8 @@ export function buildLegend(): void {
   })
   legendEl.appendChild(all)
 
-  if (S.viewMode === 'history') {
-    const range = document.createElement('button')
-    range.className = 'chip active'
-    range.textContent = `◷ ${historyRangeLabel()} · ${S.allBms.length} ▾`
-    range.title = t('historyRangeTitle')
-    range.addEventListener('click', ev => {
-      ev.stopPropagation() // que el clic no llegue al cierre global del menú
-      const rect = range.getBoundingClientRect()
-      showMenu(rect.left, rect.bottom + 6, historyRangeMenu())
-    })
-    legendEl.appendChild(range)
-    if (S.historyRange.preset === 'custom') {
-      const clear = document.createElement('button')
-      clear.className = 'chip'
-      clear.textContent = '✕'
-      clear.title = t('historyClearFilter')
-      clear.addEventListener('click', () => void setHistoryRange({ preset: '24h' }))
-      legendEl.appendChild(clear)
-    }
-    const unsavedCount = S.allBms.filter(n => n.unsaved).length
-    if (unsavedCount || S.historyUnsavedOnly) {
-      const triage = document.createElement('button')
-      triage.className = S.historyUnsavedOnly ? 'chip active' : 'chip'
-      triage.textContent = `☆ ${t('historyUnsavedChip')} · ${unsavedCount}`
-      triage.title = t('historyUnsavedTitle')
-      triage.addEventListener('click', () => void setHistoryUnsavedOnly(!S.historyUnsavedOnly))
-      legendEl.appendChild(triage)
-    }
+  for (const item of S.strategy.legendItems?.() ?? []) {
+    legendEl.appendChild(item)
   }
 }
 
