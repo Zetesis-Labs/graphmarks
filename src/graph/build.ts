@@ -2,13 +2,13 @@ import { app } from '../bus'
 import { LOOSE_DOM, MAX_SLOTS, UNTAGGED } from '../constants'
 import { HAS_FAVICON_API, IS_EXT } from '../env'
 import { t } from '../i18n'
+import { bmCount, clusterDepth, hostPairs } from '../lib/graph-shape'
 import { domainKey, normPath } from '../lib/utils'
 import { S } from '../state'
 import { tagsOf } from '../tags'
 import type { Cluster, GraphNode, LinkKind, RawBookmarkNode } from '../types'
 
-export const bmCount = (n: RawBookmarkNode): number =>
-  n.url ? 1 : (n.children ?? []).reduce((s, c) => s + bmCount(c), 0)
+export { bmCount }
 
 function makeBmNode(it: RawBookmarkNode, folderId: string | null): GraphNode {
   let host = ''
@@ -75,22 +75,7 @@ function assignSlots(list: Cluster[], noSlotIds: Set<string> = new Set()): void 
 
 function finishGraph(withHostLinks: boolean): void {
   if (withHostLinks) {
-    const byHost = new Map<string, GraphNode[]>()
-    for (const n of S.nodes) {
-      if (n.type === 'bm' && n.host) {
-        if (!byHost.has(n.host)) byHost.set(n.host, [])
-        byHost.get(n.host)?.push(n)
-      }
-    }
-    for (const group of byHost.values()) {
-      if (group.length < 2 || group.length > 6) continue
-      for (let i = 0; i < group.length; i++)
-        for (let j = i + 1; j < group.length; j++) {
-          const a = group[i]
-          const b = group[j]
-          if (a && b) addLink(a.id, b.id, 'host')
-        }
-    }
+    for (const [a, b] of hostPairs(S.nodes.filter(n => n.type === 'bm'))) addLink(a, b, 'host')
   }
   rebuildNeighbors()
   if (IS_EXT) for (const n of S.nodes) if (n.type === 'bm' && n.url) loadFavicon(n.url)
@@ -98,60 +83,53 @@ function finishGraph(withHostLinks: boolean): void {
 
 /* --- vista carpetas --- */
 
+function walkBookmark(it: RawBookmarkNode, parent: GraphNode | null, clusterId: string | null): void {
+  if (!/^https?:/.test(it.url ?? '')) return
+  const n = makeBmNode(it, parent ? parent.id : null)
+  n.cluster = clusterId ?? (parent ? parent.id : 'misc')
+  n.parentId = parent ? parent.id : null
+  addNode(n)
+  if (parent) addLink(parent.id, n.id, 'tree')
+}
+
+function walkFolder(
+  it: RawBookmarkNode,
+  parent: GraphNode | null,
+  depth: number,
+  clusterId: string | null,
+  cutDepth: number
+): void {
+  const isCluster = depth === cutDepth
+  const node = addNode({
+    id: it.id,
+    raw: it.id,
+    type: 'folder',
+    title: it.title || t('folderUnnamed'),
+    count: bmCount(it),
+    cluster: isCluster ? it.id : (clusterId ?? undefined),
+    parentId: parent ? parent.id : null
+  })
+  if (parent) addLink(parent.id, it.id, 'tree')
+  walkTree(it.children ?? [], node, depth + 1, isCluster ? it.id : clusterId, cutDepth)
+}
+
+function walkTree(
+  items: RawBookmarkNode[],
+  parent: GraphNode | null,
+  depth: number,
+  clusterId: string | null,
+  cutDepth: number
+): void {
+  for (const it of items) {
+    if (it.url) walkBookmark(it, parent, clusterId)
+    else if (it.children && bmCount(it) > 0) walkFolder(it, parent, depth, clusterId, cutDepth)
+  }
+}
+
 function buildGraphFolders(tree: RawBookmarkNode[]): void {
   initCommon()
   const containers = tree[0]?.children ?? []
-
-  // profundidad de clúster: primer nivel con >= 2 carpetas con contenido
-  const perDepth: RawBookmarkNode[][] = []
-  const scan = (items: RawBookmarkNode[], d: number): void => {
-    for (const it of items) {
-      if (!it.url && it.children) {
-        if (bmCount(it) > 0) {
-          perDepth[d] ??= []
-          perDepth[d]?.push(it)
-        }
-        scan(it.children, d + 1)
-      }
-    }
-  }
-  scan(
-    containers.flatMap(c => c.children ?? []),
-    1
-  )
-  let clusterDepth = 1
-  for (let d = 1; d < perDepth.length + 1; d++) {
-    if ((perDepth[d] ?? []).length >= 2) {
-      clusterDepth = d
-      break
-    }
-  }
-
-  const walk = (items: RawBookmarkNode[], parent: GraphNode | null, depth: number, clusterId: string | null): void => {
-    for (const it of items) {
-      if (it.url) {
-        if (!/^https?:/.test(it.url)) continue
-        const n = makeBmNode(it, parent ? parent.id : null)
-        n.cluster = clusterId ?? (parent ? parent.id : 'misc')
-        n.parentId = parent ? parent.id : null
-        addNode(n)
-        if (parent) addLink(parent.id, n.id, 'tree')
-      } else if (it.children && bmCount(it) > 0) {
-        const isCluster = depth === clusterDepth
-        const node = addNode({
-          id: it.id,
-          raw: it.id,
-          type: 'folder',
-          title: it.title || t('folderUnnamed'),
-          count: bmCount(it),
-          cluster: isCluster ? it.id : (clusterId ?? undefined),
-          parentId: parent ? parent.id : null
-        })
-        if (parent) addLink(parent.id, it.id, 'tree')
-        walk(it.children, node, depth + 1, isCluster ? it.id : clusterId)
-      }
-    }
-  }
+  const cutDepth = clusterDepth(containers.flatMap(c => c.children ?? []))
 
   for (const c of containers) {
     const loose = (c.children ?? []).filter(x => x.url)
@@ -167,13 +145,14 @@ function buildGraphFolders(tree: RawBookmarkNode[]): void {
         parentId: null
       })
     }
-    walk(
+    walkTree(
       (c.children ?? []).filter(x => !x.url),
       null,
       1,
-      null
+      null,
+      cutDepth
     )
-    if (parent) walk(loose, parent, 1, c.id)
+    if (parent) walkTree(loose, parent, 1, c.id, cutDepth)
   }
 
   assignSlots(

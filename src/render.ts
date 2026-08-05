@@ -3,10 +3,12 @@ import { customIcon } from './custom'
 import { HAS_FAVICON_API } from './env'
 import { backPosition, plusPosition, satPositions, satScale } from './graph/hit'
 import { clusterColor, linkColor, nodeColor, radius } from './graph/style'
+import { curveCtrl, quadPoint, quadTangent } from './lib/curve'
 import { convexHull, type Pt } from './lib/hull'
+import { bmLabelVisible, folderLabelVisible, linkAlpha, linkWidth } from './lib/render-rules'
 import { strHash } from './lib/utils'
 import { COLORS, type FaviconRecord, pinsOfView, S } from './state'
-import type { GraphNode, LinkKind } from './types'
+import type { GraphLink, GraphNode } from './types'
 import { canvas, ctx } from './ui/dom'
 
 const ENTRANCE_MS = 350
@@ -45,13 +47,6 @@ function currentFocus(): Set<string> | null {
     return s
   }
   return S.focusSet
-}
-
-/* Aristas curvas: control de la Bézier cuadrática desplazado en perpendicular.
-   El signo es fijo para que la curva no cambie de lado entre frames. */
-function curveCtrl(sx: number, sy: number, tx: number, ty: number, kind: LinkKind): { cx: number; cy: number } {
-  const bend = kind === 'host' ? 0.22 : kind === 'history' ? 0.17 : 0.12
-  return { cx: (sx + tx) / 2 - (ty - sy) * bend, cy: (sy + ty) / 2 + (tx - sx) * bend }
 }
 
 /* Nodos arrastrados lejos por aristas cruzadas estiran la mancha de su cluster
@@ -189,43 +184,42 @@ function visibleCurve(sx: number, sy: number, tx: number, ty: number, cx: number
 }
 
 function drawHistoryArrow(sx: number, sy: number, tx: number, ty: number, cx: number, cy: number, k: number): void {
-  const t = 0.72
-  const v = 1 - t
-  const x = v * v * sx + 2 * v * t * cx + t * t * tx
-  const y = v * v * sy + 2 * v * t * cy + t * t * ty
-  const dx = 2 * (v * (cx - sx) + t * (tx - cx))
-  const dy = 2 * (v * (cy - sy) + t * (ty - cy))
-  const angle = Math.atan2(dy, dx)
+  const u = 0.72
+  const p = quadPoint(sx, sy, cx, cy, tx, ty, u)
+  const d = quadTangent(sx, sy, cx, cy, tx, ty, u)
+  const angle = Math.atan2(d.y, d.x)
   const size = 3.5 / k
   ctx.beginPath()
-  ctx.moveTo(x + Math.cos(angle) * size, y + Math.sin(angle) * size)
-  ctx.lineTo(x + Math.cos(angle + 2.5) * size, y + Math.sin(angle + 2.5) * size)
-  ctx.lineTo(x + Math.cos(angle - 2.5) * size, y + Math.sin(angle - 2.5) * size)
+  ctx.moveTo(p.x + Math.cos(angle) * size, p.y + Math.sin(angle) * size)
+  ctx.lineTo(p.x + Math.cos(angle + 2.5) * size, p.y + Math.sin(angle + 2.5) * size)
+  ctx.lineTo(p.x + Math.cos(angle - 2.5) * size, p.y + Math.sin(angle - 2.5) * size)
   ctx.closePath()
   ctx.fillStyle = ctx.strokeStyle
   ctx.fill()
 }
 
+function drawLink(l: GraphLink, focus: Set<string> | null, k: number, vp: Viewport): void {
+  const source = l.source as GraphNode
+  const target = l.target as GraphNode
+  const on = !!focus && focus.has(source.id) && focus.has(target.id)
+  ctx.globalAlpha = linkAlpha(l.type, !!focus, on)
+  ctx.strokeStyle = on ? COLORS.ink2 : linkColor(l)
+  ctx.lineWidth = linkWidth(l.type) / k
+  const sx = source.x ?? 0
+  const sy = source.y ?? 0
+  const tx = target.x ?? 0
+  const ty = target.y ?? 0
+  const { cx, cy } = curveCtrl(sx, sy, tx, ty, l.type)
+  if (!visibleCurve(sx, sy, tx, ty, cx, cy, vp)) return
+  ctx.beginPath()
+  ctx.moveTo(sx, sy)
+  ctx.quadraticCurveTo(cx, cy, tx, ty)
+  ctx.stroke()
+  if (l.type === 'history' && k >= 0.45) drawHistoryArrow(sx, sy, tx, ty, cx, cy, k)
+}
+
 function drawLinks(focus: Set<string> | null, k: number, vp: Viewport): void {
-  for (const l of S.links) {
-    const source = l.source as GraphNode
-    const target = l.target as GraphNode
-    const on = !!focus && focus.has(source.id) && focus.has(target.id)
-    ctx.globalAlpha = focus ? (on ? 0.9 : 0.04) : l.type === 'host' ? 0.14 : l.type === 'history' ? 0.24 : 0.3
-    ctx.strokeStyle = on ? COLORS.ink2 : linkColor(l)
-    ctx.lineWidth = (l.type === 'host' ? 0.7 : l.type === 'history' ? 0.9 : 1) / k
-    const sx = source.x ?? 0
-    const sy = source.y ?? 0
-    const tx = target.x ?? 0
-    const ty = target.y ?? 0
-    const { cx, cy } = curveCtrl(sx, sy, tx, ty, l.type)
-    if (!visibleCurve(sx, sy, tx, ty, cx, cy, vp)) continue
-    ctx.beginPath()
-    ctx.moveTo(sx, sy)
-    ctx.quadraticCurveTo(cx, cy, tx, ty)
-    ctx.stroke()
-    if (l.type === 'history' && k >= 0.45) drawHistoryArrow(sx, sy, tx, ty, cx, cy, k)
-  }
+  for (const l of S.links) drawLink(l, focus, k, vp)
 }
 
 /* Glow por sprites: el gradiente radial se rasteriza una vez por color y el
@@ -350,40 +344,46 @@ function drawFolderPresentation(n: GraphNode, r: number, k: number, col: string)
   }
 }
 
-function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): void {
-  let r = radius(n)
-  const kk = Math.max(k, 1)
-  let alpha = focusAlpha
-
-  if (n.born !== undefined) {
-    const t = (now - n.born) / ENTRANCE_MS
-    if (t < 1) {
-      const e = 1 - (1 - Math.max(t, 0)) ** 3
-      r *= e
-      alpha *= 0.3 + 0.7 * e
-      entranceActive = true
-    } else {
-      n.born = undefined
-    }
+/** Escala de entrada del nodo recién nacido (multiplicadores de radio y alfa). */
+function entranceFactor(n: GraphNode, now: number): { r: number; alpha: number } {
+  if (n.born === undefined) return { r: 1, alpha: 1 }
+  const t = (now - n.born) / ENTRANCE_MS
+  if (t >= 1) {
+    n.born = undefined
+    return { r: 1, alpha: 1 }
   }
-  // las pestañas fantasma respiran: están vivas pero sin ancla
-  if (n.type === 'ghost') alpha *= 0.72 + 0.28 * Math.sin(now / 650 + (strHash(n.id) % 100) / 15.9)
+  entranceActive = true
+  const e = 1 - (1 - Math.max(t, 0)) ** 3
+  return { r: e, alpha: 0.3 + 0.7 * e }
+}
 
-  ctx.globalAlpha = alpha
-  const col = nodeColor(n)
-  const wantsFavicon = (n.type === 'bm' || n.type === 'ghost') && k >= 1.15
-
+function drawNodeGlow(n: GraphNode, r: number, alpha: number, col: string): void {
   const heatGlow = n.type === 'bm' ? Math.max(0, ((n.heat ?? 0) - 0.45) / 0.55) * 0.55 : 0
   const hoverGlow = n === S.hoverNode || n === S.searchFocusNode ? 0.9 : 0
   const glow = Math.max(heatGlow, hoverGlow)
-  if (glow > 0.04 && r > 0.5) {
-    const size = r * 7
-    ctx.globalAlpha = alpha * glow
-    ctx.drawImage(glowSprite(col), (n.x ?? 0) - size / 2, (n.y ?? 0) - size / 2, size, size)
-    ctx.globalAlpha = alpha
-  }
+  if (glow <= 0.04 || r <= 0.5) return
+  const size = r * 7
+  ctx.globalAlpha = alpha * glow
+  ctx.drawImage(glowSprite(col), (n.x ?? 0) - size / 2, (n.y ?? 0) - size / 2, size, size)
+  ctx.globalAlpha = alpha
+}
 
+/* Hubs sintéticos: huecos, para distinguirlos de carpetas; los niveles de
+   jerarquía (subdominio/ruta) llevan trazo cada vez más fino y punteado. */
+function drawHubBody(n: GraphNode, col: string, kk: number): void {
+  if (n.subtype === 'ghosthub') ctx.setLineDash([4 / kk, 3 / kk])
+  if (n.subtype === 'path') ctx.setLineDash([2 / kk, 1.8 / kk])
+  ctx.fillStyle = COLORS.page
+  ctx.fill()
+  ctx.lineWidth = (n.subtype === 'subdomain' ? 1.8 : n.subtype === 'path' ? 1.3 : 2.5) / kk
+  ctx.strokeStyle = col
+  ctx.stroke()
+  ctx.setLineDash([])
+}
+
+function drawNodeBody(n: GraphNode, r: number, col: string, k: number, kk: number): void {
   const icon = customIcon(n)
+  const wantsFavicon = (n.type === 'bm' || n.type === 'ghost') && k >= 1.15
   ctx.beginPath()
   ctx.arc(n.x ?? 0, n.y ?? 0, r, 0, Math.PI * 2)
   if (n.type === 'ghost') {
@@ -391,16 +391,7 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
   } else if (n.type === 'folder' && !n.subtype && icon?.ok) {
     drawFavicon(n, r, col, false, k, icon)
   } else if (n.type === 'folder' && n.subtype) {
-    // hubs sintéticos: huecos, para distinguirlos de carpetas; los niveles de
-    // jerarquía (subdominio/ruta) llevan trazo cada vez más fino y punteado
-    if (n.subtype === 'ghosthub') ctx.setLineDash([4 / kk, 3 / kk])
-    if (n.subtype === 'path') ctx.setLineDash([2 / kk, 1.8 / kk])
-    ctx.fillStyle = COLORS.page
-    ctx.fill()
-    ctx.lineWidth = (n.subtype === 'subdomain' ? 1.8 : n.subtype === 'path' ? 1.3 : 2.5) / kk
-    ctx.strokeStyle = col
-    ctx.stroke()
-    ctx.setLineDash([])
+    drawHubBody(n, col, kk)
   } else if (wantsFavicon && (icon?.ok || (n.url && S.favicons.get(n.url)?.ok) || !HAS_FAVICON_API)) {
     drawFavicon(n, r, col, false, k, icon?.ok ? icon : undefined)
   } else {
@@ -410,9 +401,10 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
     ctx.strokeStyle = COLORS.page
     ctx.stroke()
   }
+}
 
+function drawNodeBadges(n: GraphNode, r: number, k: number, kk: number, col: string): void {
   drawFolderPresentation(n, r, k, col)
-
   // anillo indicador de pestaña abierta
   if (S.openTabs.has(n.id)) {
     ctx.beginPath()
@@ -430,34 +422,48 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
   }
 }
 
+function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): void {
+  const kk = Math.max(k, 1)
+  const entrance = entranceFactor(n, now)
+  const r = radius(n) * entrance.r
+  let alpha = focusAlpha * entrance.alpha
+  // las pestañas fantasma respiran: están vivas pero sin ancla
+  if (n.type === 'ghost') alpha *= 0.72 + 0.28 * Math.sin(now / 650 + (strHash(n.id) % 100) / 15.9)
+  ctx.globalAlpha = alpha
+  const col = nodeColor(n)
+  drawNodeGlow(n, r, alpha, col)
+  drawNodeBody(n, r, col, k, kk)
+  drawNodeBadges(n, r, k, kk, col)
+}
+
 /* Partículas fluyendo hacia los nodos con pestaña abierta, sobre la misma
    curva que pinta drawLinks para no salirse de la arista. */
+function drawParticle(l: GraphLink, focus: Set<string> | null, k: number, now: number, vp: Viewport): void {
+  const source = l.source as GraphNode
+  const target = l.target as GraphNode
+  const open = S.openTabs.has(target.id) ? target : S.openTabs.has(source.id) ? source : null
+  if (!open) return
+  if (focus && !(focus.has(source.id) && focus.has(target.id))) return
+  const sx = source.x ?? 0
+  const sy = source.y ?? 0
+  const tx = target.x ?? 0
+  const ty = target.y ?? 0
+  const { cx, cy } = curveCtrl(sx, sy, tx, ty, l.type)
+  if (!visibleCurve(sx, sy, tx, ty, cx, cy, vp)) return
+  const phase = (strHash(`${source.id}|${target.id}`) % 1000) / 1000
+  const t = (now / PARTICLE_PERIOD_MS + phase) % 1
+  const p = quadPoint(sx, sy, cx, cy, tx, ty, open === target ? t : 1 - t)
+  ctx.globalAlpha = 0.85
+  ctx.beginPath()
+  ctx.arc(p.x, p.y, Math.max(1.1, 1.6 / k), 0, Math.PI * 2)
+  ctx.fillStyle = nodeColor(open)
+  ctx.fill()
+}
+
 function drawParticles(focus: Set<string> | null, k: number, now: number, vp: Viewport): void {
   if (!S.openTabs.size) return
   for (const l of S.links) {
-    if (l.type !== 'tree') continue
-    const source = l.source as GraphNode
-    const target = l.target as GraphNode
-    const open = S.openTabs.has(target.id) ? target : S.openTabs.has(source.id) ? source : null
-    if (!open) continue
-    if (focus && !(focus.has(source.id) && focus.has(target.id))) continue
-    const sx = source.x ?? 0
-    const sy = source.y ?? 0
-    const tx = target.x ?? 0
-    const ty = target.y ?? 0
-    const { cx, cy } = curveCtrl(sx, sy, tx, ty, l.type)
-    if (!visibleCurve(sx, sy, tx, ty, cx, cy, vp)) continue
-    const phase = (strHash(`${source.id}|${target.id}`) % 1000) / 1000
-    const t = (now / PARTICLE_PERIOD_MS + phase) % 1
-    const u = open === target ? t : 1 - t
-    const v = 1 - u
-    const px = v * v * sx + 2 * v * u * cx + u * u * tx
-    const py = v * v * sy + 2 * v * u * cy + u * u * ty
-    ctx.globalAlpha = 0.85
-    ctx.beginPath()
-    ctx.arc(px, py, Math.max(1.1, 1.6 / k), 0, Math.PI * 2)
-    ctx.fillStyle = nodeColor(open)
-    ctx.fill()
+    if (l.type === 'tree') drawParticle(l, focus, k, now, vp)
   }
 }
 
@@ -509,43 +515,42 @@ function drawVignette(w: number, h: number): void {
   ctx.fillRect(0, 0, w, h)
 }
 
+function drawLabelHalo(x: number, y: number, text: string, k: number): void {
+  ctx.lineWidth = 3 / k
+  ctx.strokeStyle = COLORS.page
+  ctx.strokeText(text, x, y)
+}
+
+function drawFolderLabel(n: GraphNode, k: number, focused: boolean, hasFocus: boolean): void {
+  const minor = n.subtype === 'subdomain' || n.subtype === 'path'
+  if (!folderLabelVisible(minor, k, focused, hasFocus, n === S.hoverNode)) return
+  const r = radius(n)
+  ctx.globalAlpha = focused ? 1 : 0.5
+  ctx.font = minor ? `${10 / k}px system-ui, sans-serif` : `600 ${12 / k}px system-ui, sans-serif`
+  drawLabelHalo(n.x ?? 0, (n.y ?? 0) + r + 4 / k, n.title, k)
+  ctx.fillStyle = n === S.hoverNode || n === S.dropTarget ? COLORS.ink : minor ? COLORS.muted : COLORS.ink2
+  ctx.fillText(n.title, n.x ?? 0, (n.y ?? 0) + r + 4 / k)
+}
+
+function drawBmLabel(n: GraphNode, k: number, focused: boolean, hasFocus: boolean): void {
+  if (!bmLabelVisible(k, n.type === 'ghost', focused, hasFocus, n === S.hoverNode, n === S.searchFocusNode)) return
+  const r = radius(n)
+  ctx.globalAlpha = 1
+  ctx.font = `${10.5 / k}px system-ui, sans-serif`
+  const label = n.title.length > 42 ? `${n.title.slice(0, 41)}…` : n.title
+  drawLabelHalo(n.x ?? 0, (n.y ?? 0) + r + 3 / k, label, k)
+  ctx.fillStyle = n === S.hoverNode ? COLORS.ink : COLORS.muted
+  ctx.fillText(label, n.x ?? 0, (n.y ?? 0) + r + 3 / k)
+}
+
 function drawLabels(focus: Set<string> | null, k: number, vp: Viewport): void {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
-  const halo = (x: number, y: number, text: string): void => {
-    ctx.lineWidth = 3 / k
-    ctx.strokeStyle = COLORS.page
-    ctx.strokeText(text, x, y)
-  }
-  const inFocus = (id: string): boolean => !focus || focus.has(id)
   for (const n of S.nodes) {
     if (!visibleNode(n, vp)) continue
-    const r = radius(n)
-    const focused = inFocus(n.id)
-    if (n.type === 'folder') {
-      if (!focused && focus) continue
-      const minor = n.subtype === 'subdomain' || n.subtype === 'path'
-      if (minor && k < 0.85 && n !== S.hoverNode) continue
-      ctx.globalAlpha = focused ? 1 : 0.5
-      ctx.font = minor ? `${10 / k}px system-ui, sans-serif` : `600 ${12 / k}px system-ui, sans-serif`
-      halo(n.x ?? 0, (n.y ?? 0) + r + 4 / k, n.title)
-      ctx.fillStyle = n === S.hoverNode || n === S.dropTarget ? COLORS.ink : minor ? COLORS.muted : COLORS.ink2
-      ctx.fillText(n.title, n.x ?? 0, (n.y ?? 0) + r + 4 / k)
-    } else {
-      const show =
-        (k >= 1.5 && focused) ||
-        (n.type === 'ghost' && k >= 0.8 && focused) ||
-        (!!focus && focused) ||
-        n === S.hoverNode ||
-        n === S.searchFocusNode
-      if (!show) continue
-      ctx.globalAlpha = 1
-      ctx.font = `${10.5 / k}px system-ui, sans-serif`
-      const label = n.title.length > 42 ? `${n.title.slice(0, 41)}…` : n.title
-      halo(n.x ?? 0, (n.y ?? 0) + r + 3 / k, label)
-      ctx.fillStyle = n === S.hoverNode ? COLORS.ink : COLORS.muted
-      ctx.fillText(label, n.x ?? 0, (n.y ?? 0) + r + 3 / k)
-    }
+    const focused = !focus || focus.has(n.id)
+    if (n.type === 'folder') drawFolderLabel(n, k, focused, !!focus)
+    else drawBmLabel(n, k, focused, !!focus)
   }
 }
 

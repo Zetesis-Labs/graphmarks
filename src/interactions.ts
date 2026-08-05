@@ -24,6 +24,8 @@ import { findAt, findFolderAt, findHit } from './graph/hit'
 import { simulation } from './graph/simulation'
 import { nodeColor, radius } from './graph/style'
 import { t } from './i18n'
+import { dropExclusions } from './lib/drop-rules'
+import { fitTransform } from './lib/fit'
 import { saveStore } from './lib/storage'
 import { short } from './lib/utils'
 import { invalidateGraphGeometry } from './render'
@@ -54,18 +56,9 @@ export const zoom = d3zoom<HTMLCanvasElement, unknown>()
   })
 
 export function zoomToNodes(list: GraphNode[], pad = 60, duration = 550): void {
-  if (!list.length) return
-  const xs = list.map(n => n.x ?? 0)
-  const ys = list.map(n => n.y ?? 0)
-  const [x0, x1] = [Math.min(...xs) - pad, Math.max(...xs) + pad]
-  const [y0, y1] = [Math.min(...ys) - pad, Math.max(...ys) + pad]
-  const w = canvas.clientWidth
-  const h = canvas.clientHeight
-  const k = Math.min(4, 0.95 / Math.max((x1 - x0) / w, (y1 - y0) / h))
-  const t = zoomIdentity
-    .translate(w / 2, h / 2)
-    .scale(k)
-    .translate(-(x0 + x1) / 2, -(y0 + y1) / 2)
+  const fit = fitTransform(list, canvas.clientWidth, canvas.clientHeight, pad)
+  if (!fit) return
+  const t = zoomIdentity.translate(fit.x, fit.y).scale(fit.k)
   select(canvas).transition().duration(duration).call(zoom.transform, t)
 }
 
@@ -77,16 +70,18 @@ export function resetZoom(): void {
 /* --- soltado: mover carpeta, etiquetar o adoptar pestaña --- */
 
 function dropExcludes(subject: GraphNode): Set<string> | null {
-  if (S.viewMode === 'domains' || S.viewMode === 'history') return null // sin semántica de soltado
-  if (S.viewMode === 'tags') {
-    if (subject.type !== 'bm' && !ADOPTABLE.has(subject.type)) return null
-    return new Set([...(subject.hubs ?? []), UNTAGGED])
-  }
-  if (ADOPTABLE.has(subject.type)) return new Set(subject.hubs ?? [])
-  const ex = new Set([subject.id])
-  if (subject.parentId) ex.add(subject.parentId)
-  if (subject.type === 'folder') for (const d of members(subject)) ex.add(d.id)
-  return ex
+  return dropExclusions(
+    S.viewMode,
+    {
+      id: subject.id,
+      isBookmark: subject.type === 'bm',
+      isAdoptable: ADOPTABLE.has(subject.type),
+      parentId: subject.parentId ?? null,
+      hubs: subject.hubs ?? [],
+      folderMemberIds: subject.type === 'folder' ? members(subject).map(m => m.id) : []
+    },
+    UNTAGGED
+  )
 }
 
 function handleDrop(subj: GraphNode, target: GraphNode): void {
@@ -263,37 +258,53 @@ function folderPresentationItems(n: GraphNode): MenuItem[] {
 
 /* --- tooltip --- */
 
+interface TooltipContent {
+  title: string
+  sub: string
+  tagLine: string
+}
+
+function bmTooltipContent(n: GraphNode): TooltipContent {
+  let sub = n.url ?? ''
+  if (n.history) {
+    const visits = n.historyVisits ?? 1
+    sub += `  ·  ${visits === 1 ? t('historyVisitOne') : t('historyVisits', visits)}`
+  }
+  const open = S.openTabs.get(n.id)
+  if (open?.length) sub += `  ·  ${open.length === 1 ? t('tooltipOpenCountOne') : t('tooltipOpenCount', open.length)}`
+  return { title: n.title, sub, tagLine: n.tags?.length ? n.tags.map(tag => `#${tag}`).join('  ') : '' }
+}
+
+function folderTooltipSub(n: GraphNode): string {
+  const pref = n.raw ? S.folderPrefs[n.raw] : undefined
+  if (pref?.subgraph && S.activeSubgraph !== n.raw) return t('tooltipOpenSubgraph', n.count ?? 0)
+  if (n.collapsed) return t('tooltipExpandFolder', n.count ?? 0)
+  return t('tooltipBookmarks', n.count ?? 0)
+}
+
+function tooltipContent(n: GraphNode, aux: ReturnType<typeof findHit>['aux']): TooltipContent {
+  if (aux?.type === 'sat') return { title: aux.tab.title, sub: t('tooltipGoToTab'), tagLine: '' }
+  if (aux?.type === 'back') return { title: t('menuBackToGraph'), sub: t('tooltipBackToGraph'), tagLine: '' }
+  if (aux?.type === 'plus') return { title: t('tooltipOpenNewTab'), sub: n.url ?? '', tagLine: '' }
+  if (n.type === 'bm') return bmTooltipContent(n)
+  if (n.type === 'ghost') return { title: n.title, sub: n.url ?? '', tagLine: '' }
+  return { title: n.title, sub: folderTooltipSub(n), tagLine: '' }
+}
+
+function placeTooltip(ev: MouseEvent): void {
+  const pad = 14
+  let x = ev.clientX + pad
+  let y = ev.clientY + pad
+  const r = tooltip.getBoundingClientRect()
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - pad
+  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - pad
+  tooltip.style.left = `${x}px`
+  tooltip.style.top = `${y}px`
+}
+
 function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof findHit>['aux']): void {
   tooltip.hidden = false
-  let title = n.title
-  let sub = ''
-  let tagLine = ''
-  if (aux?.type === 'sat') {
-    title = aux.tab.title
-    sub = t('tooltipGoToTab')
-  } else if (aux?.type === 'back') {
-    title = t('menuBackToGraph')
-    sub = t('tooltipBackToGraph')
-  } else if (aux?.type === 'plus') {
-    title = t('tooltipOpenNewTab')
-    sub = n.url ?? ''
-  } else if (n.type === 'bm') {
-    sub = n.url ?? ''
-    if (n.history) {
-      const visits = n.historyVisits ?? 1
-      sub += `  ·  ${visits === 1 ? t('historyVisitOne') : t('historyVisits', visits)}`
-    }
-    const open = S.openTabs.get(n.id)
-    if (open?.length) sub += `  ·  ${open.length === 1 ? t('tooltipOpenCountOne') : t('tooltipOpenCount', open.length)}`
-    tagLine = n.tags?.length ? n.tags.map(t => `#${t}`).join('  ') : ''
-  } else if (n.type === 'ghost') {
-    sub = n.url ?? ''
-  } else {
-    const pref = n.raw ? S.folderPrefs[n.raw] : undefined
-    if (pref?.subgraph && S.activeSubgraph !== n.raw) sub = t('tooltipOpenSubgraph', n.count ?? 0)
-    else if (n.collapsed) sub = t('tooltipExpandFolder', n.count ?? 0)
-    else sub = t('tooltipBookmarks', n.count ?? 0)
-  }
+  const { title, sub, tagLine } = tooltipContent(n, aux)
   const span = (cls: string, text: string): HTMLSpanElement => {
     const el = document.createElement('span')
     el.className = cls
@@ -303,15 +314,7 @@ function updateTooltip(ev: MouseEvent, n: GraphNode, aux: ReturnType<typeof find
   const tagsEl = span('tags', tagLine)
   tagsEl.style.display = tagLine ? '' : 'none'
   tooltip.replaceChildren(span('t', title), span('u', sub), tagsEl)
-
-  const pad = 14
-  let x = ev.clientX + pad
-  let y = ev.clientY + pad
-  const r = tooltip.getBoundingClientRect()
-  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - pad
-  if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - pad
-  tooltip.style.left = `${x}px`
-  tooltip.style.top = `${y}px`
+  placeTooltip(ev)
 }
 
 /* --- menú contextual --- */
@@ -340,88 +343,88 @@ function backgroundMenu(): MenuItem[] {
   ]
 }
 
+function goToOpenItems(n: GraphNode): MenuItem[] {
+  const open = S.openTabs.get(n.id) ?? []
+  if (!open.length) return []
+  return [
+    {
+      label: open.length > 1 ? t('menuGoToOpenTabs', open.length) : t('menuGoToOpenTab'),
+      action: () => {
+        const first = open[0]
+        if (first) void activateTab(first)
+      }
+    }
+  ]
+}
+
+function historyBmMenu(n: GraphNode): MenuItem[] {
+  return [
+    ...goToOpenItems(n),
+    { label: t('menuOpen'), action: () => (window.location.href = n.url ?? '') },
+    { label: t('menuOpenNewTab'), action: () => window.open(n.url ?? '') },
+    { sep: true },
+    { label: t('menuSaveAsBookmark'), action: () => promptAdopt(n) },
+    ...pinItem(n)
+  ]
+}
+
+function bmMenu(n: GraphNode): MenuItem[] {
+  return [
+    ...goToOpenItems(n),
+    {
+      label: t('menuOpen'),
+      action: () => {
+        window.location.href = n.url ?? ''
+      }
+    },
+    { label: t('menuOpenNewTab'), action: () => window.open(n.url ?? '') },
+    { sep: true },
+    { label: t('menuTags'), action: () => promptTags(n) },
+    { label: t('menuRename'), action: () => promptRename(n) },
+    { label: t('menuEditUrl'), action: () => promptUrl(n) },
+    { label: t('menuMoveToFolder'), action: () => promptMove(n) },
+    { label: t('menuCustomIcon'), action: () => pickIcon(n) },
+    ...(customIcon(n) ? [{ label: t('menuCustomIconRemove'), action: () => void removeIcon(n) }] : []),
+    ...pinItem(n),
+    { sep: true },
+    { label: t('menuDelete'), danger: true, action: () => confirmDelete(n) }
+  ]
+}
+
+function ghostMenu(n: GraphNode): MenuItem[] {
+  return [
+    { label: t('menuGoToTab'), action: () => n.tab && void activateTab(n.tab) },
+    { label: t('menuSaveAsBookmark'), action: () => promptAdopt(n) },
+    { sep: true },
+    { label: t('menuCloseTab'), danger: true, action: () => n.tab && void closeTab(n.tab) }
+  ]
+}
+
+function tagHubMenu(n: GraphNode): MenuItem[] {
+  return [
+    { label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) },
+    ...(n.tag
+      ? [
+          { sep: true },
+          { label: t('menuRenameTag'), action: () => promptRenameTag(n.tag ?? '') },
+          {
+            label: t('menuDeleteTag', n.count ?? 0),
+            danger: true,
+            action: () => confirmDeleteTag(n.tag ?? '')
+          }
+        ]
+      : [])
+  ]
+}
+
 function nodeMenu(n: GraphNode): MenuItem[] {
-  if (n.type === 'bm' && n.history) {
-    const open = S.openTabs.get(n.id) ?? []
-    return [
-      ...(open.length
-        ? [
-            {
-              label: open.length > 1 ? t('menuGoToOpenTabs', open.length) : t('menuGoToOpenTab'),
-              action: () => {
-                const first = open[0]
-                if (first) void activateTab(first)
-              }
-            }
-          ]
-        : []),
-      { label: t('menuOpen'), action: () => (window.location.href = n.url ?? '') },
-      { label: t('menuOpenNewTab'), action: () => window.open(n.url ?? '') },
-      { sep: true },
-      { label: t('menuSaveAsBookmark'), action: () => promptAdopt(n) },
-      ...pinItem(n)
-    ]
-  }
-  if (n.type === 'bm') {
-    const open = S.openTabs.get(n.id) ?? []
-    return [
-      ...(open.length
-        ? [
-            {
-              label: open.length > 1 ? t('menuGoToOpenTabs', open.length) : t('menuGoToOpenTab'),
-              action: () => {
-                const first = open[0]
-                if (first) void activateTab(first)
-              }
-            }
-          ]
-        : []),
-      {
-        label: t('menuOpen'),
-        action: () => {
-          window.location.href = n.url ?? ''
-        }
-      },
-      { label: t('menuOpenNewTab'), action: () => window.open(n.url ?? '') },
-      { sep: true },
-      { label: t('menuTags'), action: () => promptTags(n) },
-      { label: t('menuRename'), action: () => promptRename(n) },
-      { label: t('menuEditUrl'), action: () => promptUrl(n) },
-      { label: t('menuMoveToFolder'), action: () => promptMove(n) },
-      { label: t('menuCustomIcon'), action: () => pickIcon(n) },
-      ...(customIcon(n) ? [{ label: t('menuCustomIconRemove'), action: () => void removeIcon(n) }] : []),
-      ...pinItem(n),
-      { sep: true },
-      { label: t('menuDelete'), danger: true, action: () => confirmDelete(n) }
-    ]
-  }
-  if (n.type === 'ghost') {
-    return [
-      { label: t('menuGoToTab'), action: () => n.tab && void activateTab(n.tab) },
-      { label: t('menuSaveAsBookmark'), action: () => promptAdopt(n) },
-      { sep: true },
-      { label: t('menuCloseTab'), danger: true, action: () => n.tab && void closeTab(n.tab) }
-    ]
-  }
+  if (n.type === 'bm' && n.history) return historyBmMenu(n)
+  if (n.type === 'bm') return bmMenu(n)
+  if (n.type === 'ghost') return ghostMenu(n)
   if (n.subtype === 'ghosthub' || n.subtype === 'domain' || n.subtype === 'subdomain' || n.subtype === 'path') {
     return [{ label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) }]
   }
-  if (n.subtype === 'tag') {
-    return [
-      { label: t('menuFrame'), action: () => zoomToNodes(members(n), 90) },
-      ...(n.tag
-        ? [
-            { sep: true },
-            { label: t('menuRenameTag'), action: () => promptRenameTag(n.tag ?? '') },
-            {
-              label: t('menuDeleteTag', n.count ?? 0),
-              danger: true,
-              action: () => confirmDeleteTag(n.tag ?? '')
-            }
-          ]
-        : [])
-    ]
-  }
+  if (n.subtype === 'tag') return tagHubMenu(n)
   return [
     { label: t('menuFrameCluster'), action: () => zoomToNodes(members(n), 90) },
     { sep: true },
@@ -440,6 +443,30 @@ function nodeMenu(n: GraphNode): MenuItem[] {
     { sep: true },
     { label: t('menuDeleteFolder', n.count ?? 0), danger: true, action: () => confirmDelete(n) }
   ]
+}
+
+/* --- clic principal: activar, abrir o navegar según el objetivo --- */
+
+function handleAuxClick(n: GraphNode, aux: NonNullable<ReturnType<typeof findHit>['aux']>): void {
+  if (aux.type === 'sat') void activateTab(aux.tab)
+  else if (aux.type === 'back') closeSubgraph()
+  else window.open(n.url ?? '')
+}
+
+function handleBmClick(n: GraphNode, ev: MouseEvent): void {
+  if (ev.metaKey || ev.ctrlKey) {
+    window.open(n.url ?? '')
+    return
+  }
+  const first = S.openTabs.get(n.id)?.[0]
+  if (first) void activateTab(first)
+  else window.location.href = n.url ?? ''
+}
+
+function handleFolderClick(n: GraphNode): void {
+  if (n.raw && S.folderPrefs[n.raw]?.subgraph && S.activeSubgraph !== n.raw) openSubgraph(n)
+  else if (n.collapsed) expandCollapsed(n)
+  else zoomToNodes(members(n), 90)
 }
 
 /* --- instalación --- */
@@ -480,36 +507,11 @@ export function initCanvasInteractions(): void {
       app.clearSearch()
       return
     }
-    if (h.aux?.type === 'sat') {
-      void activateTab(h.aux.tab)
-      return
-    }
-    if (h.aux?.type === 'back') {
-      closeSubgraph()
-      return
-    }
-    if (h.aux?.type === 'plus') {
-      window.open(n.url ?? '')
-      return
-    }
-    if (n.type === 'ghost') {
+    if (h.aux) handleAuxClick(n, h.aux)
+    else if (n.type === 'ghost') {
       if (n.tab) void activateTab(n.tab)
-      return
-    }
-    if (n.type === 'bm') {
-      if (ev.metaKey || ev.ctrlKey) {
-        window.open(n.url ?? '')
-        return
-      }
-      const open = S.openTabs.get(n.id)
-      const first = open?.[0]
-      if (first) void activateTab(first)
-      else window.location.href = n.url ?? ''
-      return
-    }
-    if (n.raw && S.folderPrefs[n.raw]?.subgraph && S.activeSubgraph !== n.raw) openSubgraph(n)
-    else if (n.collapsed) expandCollapsed(n)
-    else zoomToNodes(members(n), 90)
+    } else if (n.type === 'bm') handleBmClick(n, ev)
+    else handleFolderClick(n)
   })
 
   canvas.addEventListener('dblclick', ev => {
