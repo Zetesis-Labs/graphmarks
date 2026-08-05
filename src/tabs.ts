@@ -1,3 +1,4 @@
+import { activePort } from './browser-port'
 import { app } from './bus'
 import { IS_EXT, MOCK_TABS } from './env'
 import { t } from './i18n'
@@ -9,15 +10,6 @@ import type { GraphNode, TabInfo, WinFilter } from './types'
 import { tabcountEl, winchipEl } from './ui/dom'
 import { showMenu } from './ui/menu'
 import { toast } from './ui/toast'
-
-interface RawTab {
-  id?: number
-  windowId?: number
-  title?: string
-  url?: string
-  active?: boolean
-  lastAccessed?: number
-}
 
 function tabStatus(text: string, warn = false): void {
   tabcountEl.hidden = !text
@@ -61,30 +53,17 @@ interface OpenTabsResult {
 }
 
 export async function computeOpenTabs(bms: GraphNode[]): Promise<OpenTabsResult> {
-  let tabs: RawTab[]
-  if (S.demo) {
-    tabs = MOCK_TABS
-  } else if (IS_EXT) {
-    if (!chrome.tabs) {
-      tabStatus(t('badgeNoTabsPermission'), true)
-      return { map: new Map(), ghosts: [] }
-    }
-    tabs = await chrome.tabs.query({})
-    const withUrl = tabs.filter(t => t.url).length
-    if (tabs.length && !withUrl) {
-      tabStatus(t('badgeHiddenUrls'), true)
-      return { map: new Map(), ghosts: [] }
-    }
-  } else {
-    tabs = MOCK_TABS
+  const { tabs, warning } = await activePort().queryTabs()
+  if (warning) {
+    tabStatus(warning === 'no-permission' ? t('badgeNoTabsPermission') : t('badgeHiddenUrls'), true)
+    return { map: new Map(), ghosts: [] }
   }
-
   // inventario de ventanas (para el chip ⊞) antes de filtrar
   S.winList = summarizeWindows(tabs)
   updateWinChip()
   const wf = effectiveWinFilter()
-  if (wf !== null) tabs = tabs.filter(t => t.windowId === wf)
-  return matchTabsToBookmarks(tabs, bms)
+  const scoped = wf !== null ? tabs.filter(t => t.windowId === wf) : tabs
+  return matchTabsToBookmarks(scoped, bms)
 }
 
 function openKey(map: Map<string, TabInfo[]>): string {

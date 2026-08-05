@@ -1,37 +1,21 @@
+import { activePort, type PortHistoryPage, type PortVisit } from './browser-port'
 import { app } from './bus'
 import { MAX_SLOTS } from './constants'
-import { IS_EXT, MOCK_TABS } from './env'
 import { loadFavicon } from './graph/build'
 import { type ResolvedHistoryRange, resolveHistoryRange } from './history-range'
 import { sessionLabel, splitSessions, type VisitEvent } from './history-sessions'
 import { t } from './i18n'
 import { saveStore } from './lib/storage'
-import { canonicalUrl, domainKey, normPath, strHash } from './lib/utils'
+import { canonicalUrl, domainKey, normPath } from './lib/utils'
 import { S } from './state'
 import { tagsOf } from './tags'
 import type { Cluster, GraphNode, HistoryGrouping, HistoryRange, HistoryRangePreset, MenuItem } from './types'
 import { openDialog } from './ui/dialog'
 import { toast } from './ui/toast'
 
-interface HistoryPage {
-  id: string
-  title?: string
-  url?: string
-  lastVisitTime?: number
-  visitCount?: number
-}
-
-interface HistoryVisit {
-  id: string
-  visitId: string
-  referringVisitId: string
-  transition: string
-  visitTime?: number
-}
-
 interface PageVisits {
-  page: HistoryPage
-  visits: HistoryVisit[]
+  page: PortHistoryPage
+  visits: PortVisit[]
 }
 
 interface HistoryNodeRecord {
@@ -57,31 +41,6 @@ function rangeCacheKey(range: HistoryRange): string {
   return range.preset === 'custom' ? `custom:${range.start ?? 0}:${range.end ?? 0}` : range.preset
 }
 
-function mockHistory(range: ResolvedHistoryRange): PageVisits[] {
-  const now = Math.min(Date.now(), range.end)
-  return MOCK_TABS.filter(tab => /^https?:/.test(tab.url ?? '')).map((tab, i) => {
-    const visitTime = Math.max(range.start, now - (i + 1) * 18 * 60_000)
-    return {
-      page: {
-        id: String(strHash(tab.url ?? '')),
-        title: tab.title,
-        url: tab.url,
-        lastVisitTime: visitTime,
-        visitCount: 1
-      },
-      visits: [
-        {
-          id: String(strHash(tab.url ?? '')),
-          visitId: `mock:${i}`,
-          referringVisitId: i ? `mock:${i - 1}` : '0',
-          transition: i ? 'link' : 'typed',
-          visitTime
-        }
-      ]
-    }
-  })
-}
-
 async function concurrentMap<T, R>(items: T[], worker: (item: T) => Promise<R>): Promise<R[]> {
   const result = new Array<R>(items.length)
   let next = 0
@@ -97,16 +56,11 @@ async function concurrentMap<T, R>(items: T[], worker: (item: T) => Promise<R>):
 }
 
 async function queryHistory(range: ResolvedHistoryRange): Promise<PageVisits[]> {
-  if (!IS_EXT || !chrome.history || S.demo) return mockHistory(range)
-  const pages = (await chrome.history.search({
-    text: '',
-    startTime: range.start,
-    endTime: range.end,
-    maxResults: SEARCH_MAX_RESULTS
-  })) as HistoryPage[]
+  const port = activePort()
+  const pages = await port.historySearch(range.start, range.end, SEARCH_MAX_RESULTS)
   const valid = pages.filter(page => /^https?:/.test(page.url ?? ''))
   return concurrentMap(valid, async page => {
-    const visits = (await chrome.history.getVisits({ url: page.url ?? '' })) as HistoryVisit[]
+    const visits = await port.historyVisits(page.url ?? '', range.start, range.end)
     return {
       page,
       visits: visits.filter(v => (v.visitTime ?? 0) >= range.start && (v.visitTime ?? 0) <= range.end)

@@ -1,13 +1,7 @@
-import { IS_EXT, MOCK_TABS } from './env'
+import { activePort } from './browser-port'
+import { IS_EXT } from './env'
 import { t } from './i18n'
-import {
-  type CaptureTab,
-  type CaptureWindow,
-  planSplitSets,
-  planTabGroups,
-  shapeSessionWindows,
-  windowCreateSpec
-} from './lib/session-shape'
+import { planSplitSets, planTabGroups, shapeSessionWindows, windowCreateSpec } from './lib/session-shape'
 import { loadChunked, saveChunked, syncUsage } from './lib/sync-store'
 import { short } from './lib/utils'
 import { S } from './state'
@@ -45,66 +39,12 @@ function countSplits(s: SavedSession): number {
 
 /* --- captura --- */
 
-interface WinLike {
-  id?: number
-  left?: number
-  top?: number
-  width?: number
-  height?: number
-  state?: string
-  tabs?: chrome.tabs.Tab[]
-}
-
-function mockWindowsFromTabs(): WinLike[] {
-  const byWin = new Map<number, WinLike>()
-  for (const t of MOCK_TABS) {
-    let w = byWin.get(t.windowId)
-    if (!w) {
-      w = { id: t.windowId, left: 80, top: 80, width: 1280, height: 800, state: 'normal', tabs: [] }
-      byWin.set(t.windowId, w)
-    }
-    w.tabs?.push({ ...t, groupId: -1 } as unknown as chrome.tabs.Tab)
-  }
-  return [...byWin.values()]
-}
-
 export async function captureSession(name: string, winScope: Scope): Promise<SavedSession> {
-  // las pestañas salen de tabs.query: es la vía que garantiza splitViewId
-  // (los Tab de windows.getAll(populate) pueden venir sin ese campo)
-  let wins: WinLike[]
-  let allTabs: chrome.tabs.Tab[] | null = null
-  if (IS_EXT) {
-    wins = await chrome.windows.getAll({ windowTypes: ['normal'] })
-    allTabs = await chrome.tabs.query({})
-  } else {
-    wins = mockWindowsFromTabs()
-  }
-
-  const groupsById = new Map<number, chrome.tabGroups.TabGroup>()
-  if (IS_EXT && chrome.tabGroups) {
-    try {
-      for (const g of await chrome.tabGroups.query({})) groupsById.set(g.id, g)
-    } catch {
-      /* sin permiso tabGroups */
-    }
-  }
-
+  const port = activePort()
+  const wins = await port.sessionWindows()
+  const groupsById = await port.tabGroups()
   const selfUrl = IS_EXT ? chrome.runtime.getURL('') : null
-  const captureWins: CaptureWindow[] = wins.map(w => ({
-    id: w.id,
-    left: w.left,
-    top: w.top,
-    width: w.width,
-    height: w.height,
-    state: w.state,
-    tabs: (allTabs
-      ? allTabs.filter(t => t.windowId === w.id).sort((a, b) => a.index - b.index)
-      : (w.tabs ?? [])) as unknown as CaptureTab[]
-  }))
-  const windows = shapeSessionWindows(captureWins, groupsById, winScope, [
-    ...(selfUrl ? [selfUrl] : []),
-    'chrome://newtab'
-  ])
+  const windows = shapeSessionWindows(wins, groupsById, winScope, [...(selfUrl ? [selfUrl] : []), 'chrome://newtab'])
   return { id: `s${Date.now().toString(36)}`, name, created: new Date().toISOString(), windows }
 }
 
