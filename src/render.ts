@@ -13,8 +13,11 @@ const ENTRANCE_MS = 350
 const HULL_PAD = 26
 const DOT_SPACING = 26
 const PARTICLE_PERIOD_MS = 2600
+const ANIMATION_FRAME_MS = 1000 / 30
+const VIEWPORT_PAD = 80
 
 let drawPending = false
+let animationPending = false
 
 export function requestDraw(): void {
   if (drawPending) return
@@ -23,6 +26,16 @@ export function requestDraw(): void {
     drawPending = false
     draw()
   })
+}
+
+/** Las partículas y los ghosts no necesitan competir con el zoom a 60 fps. */
+function requestAnimationDraw(): void {
+  if (animationPending) return
+  animationPending = true
+  setTimeout(() => {
+    animationPending = false
+    requestDraw()
+  }, ANIMATION_FRAME_MS)
 }
 
 function currentFocus(): Set<string> | null {
@@ -66,7 +79,17 @@ function trimOutliers(pts: Pt[]): Pt[] {
    trazo (que da el radio redondeado) se solapa con el relleno. */
 let hullLayer: HTMLCanvasElement | null = null
 
-function drawHulls(focus: Set<string> | null, w: number, h: number, dpr: number): void {
+let hullsDirty = true
+let cachedHulls = new Map<string, Pt[]>()
+
+/** La simulación o un arrastre han cambiado posiciones, no el zoom ni el pan. */
+export function invalidateGraphGeometry(): void {
+  hullsDirty = true
+}
+
+function hulls(): Map<string, Pt[]> {
+  if (!hullsDirty) return cachedHulls
+
   const groups = new Map<string, Pt[]>()
   for (const n of S.nodes) {
     if (n.type === 'ghost' || n.subtype === 'ghosthub') continue
@@ -79,6 +102,17 @@ function drawHulls(focus: Set<string> | null, w: number, h: number, dpr: number)
     }
     g.push([n.x ?? 0, n.y ?? 0])
   }
+
+  cachedHulls = new Map()
+  for (const [cid, pts] of groups) {
+    if (pts.length >= 2) cachedHulls.set(cid, convexHull(trimOutliers(pts)))
+  }
+  hullsDirty = false
+  return cachedHulls
+}
+
+function drawHulls(focus: Set<string> | null, w: number, h: number, dpr: number): void {
+  const groups = hulls()
   if (!groups.size) return
 
   hullLayer ??= document.createElement('canvas')
@@ -99,9 +133,7 @@ function drawHulls(focus: Set<string> | null, w: number, h: number, dpr: number)
   hc.lineCap = 'round'
   hc.lineWidth = HULL_PAD * 2
 
-  for (const [cid, pts] of groups) {
-    if (pts.length < 2) continue
-    const hull = convexHull(trimOutliers(pts))
+  for (const [cid, hull] of groups) {
     const col = clusterColor(cid)
     hc.fillStyle = col
     hc.strokeStyle = col
@@ -122,7 +154,41 @@ function drawHulls(focus: Set<string> | null, w: number, h: number, dpr: number)
   ctx.restore()
 }
 
-function drawLinks(focus: Set<string> | null, k: number): void {
+interface Viewport {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+function viewport(k: number): Viewport {
+  const pad = VIEWPORT_PAD / k
+  return {
+    x0: -S.tf.x / k - pad,
+    y0: -S.tf.y / k - pad,
+    x1: (canvas.clientWidth - S.tf.x) / k + pad,
+    y1: (canvas.clientHeight - S.tf.y) / k + pad
+  }
+}
+
+function contains(vp: Viewport, x: number, y: number, pad = 0): boolean {
+  return x >= vp.x0 - pad && x <= vp.x1 + pad && y >= vp.y0 - pad && y <= vp.y1 + pad
+}
+
+function visibleNode(n: GraphNode, vp: Viewport): boolean {
+  return contains(vp, n.x ?? 0, n.y ?? 0, radius(n) + 16)
+}
+
+function visibleCurve(sx: number, sy: number, tx: number, ty: number, cx: number, cy: number, vp: Viewport): boolean {
+  return !(
+    Math.max(sx, tx, cx) < vp.x0 ||
+    Math.min(sx, tx, cx) > vp.x1 ||
+    Math.max(sy, ty, cy) < vp.y0 ||
+    Math.min(sy, ty, cy) > vp.y1
+  )
+}
+
+function drawLinks(focus: Set<string> | null, k: number, vp: Viewport): void {
   for (const l of S.links) {
     const source = l.source as GraphNode
     const target = l.target as GraphNode
@@ -135,6 +201,7 @@ function drawLinks(focus: Set<string> | null, k: number): void {
     const tx = target.x ?? 0
     const ty = target.y ?? 0
     const { cx, cy } = curveCtrl(sx, sy, tx, ty, l.type)
+    if (!visibleCurve(sx, sy, tx, ty, cx, cy, vp)) continue
     ctx.beginPath()
     ctx.moveTo(sx, sy)
     ctx.quadraticCurveTo(cx, cy, tx, ty)
@@ -302,7 +369,7 @@ function drawNode(n: GraphNode, focusAlpha: number, k: number, now: number): voi
 
 /* Partículas fluyendo hacia los nodos con pestaña abierta, sobre la misma
    curva que pinta drawLinks para no salirse de la arista. */
-function drawParticles(focus: Set<string> | null, k: number, now: number): void {
+function drawParticles(focus: Set<string> | null, k: number, now: number, vp: Viewport): void {
   if (!S.openTabs.size) return
   for (const l of S.links) {
     if (l.type === 'host') continue
@@ -316,6 +383,7 @@ function drawParticles(focus: Set<string> | null, k: number, now: number): void 
     const tx = target.x ?? 0
     const ty = target.y ?? 0
     const { cx, cy } = curveCtrl(sx, sy, tx, ty, l.type)
+    if (!visibleCurve(sx, sy, tx, ty, cx, cy, vp)) continue
     const phase = (strHash(`${source.id}|${target.id}`) % 1000) / 1000
     const t = (now / PARTICLE_PERIOD_MS + phase) % 1
     const u = open === target ? t : 1 - t
@@ -378,7 +446,7 @@ function drawVignette(w: number, h: number): void {
   ctx.fillRect(0, 0, w, h)
 }
 
-function drawLabels(focus: Set<string> | null, k: number): void {
+function drawLabels(focus: Set<string> | null, k: number, vp: Viewport): void {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
   const halo = (x: number, y: number, text: string): void => {
@@ -388,6 +456,7 @@ function drawLabels(focus: Set<string> | null, k: number): void {
   }
   const inFocus = (id: string): boolean => !focus || focus.has(id)
   for (const n of S.nodes) {
+    if (!visibleNode(n, vp)) continue
     const r = radius(n)
     const focused = inFocus(n.id)
     if (n.type === 'folder') {
@@ -417,11 +486,12 @@ function drawLabels(focus: Set<string> | null, k: number): void {
   }
 }
 
-function drawSatellites(focus: Set<string> | null): void {
+function drawSatellites(focus: Set<string> | null, vp: Viewport): void {
   const inFocus = (id: string): boolean => !focus || focus.has(id)
   for (const id of S.openTabs.keys()) {
     const n = S.byId.get(id)
     if (!n) continue
+    if (!visibleNode(n, vp)) continue
     ctx.globalAlpha = inFocus(n.id) ? 1 : 0.12
     const col = nodeColor(n)
     const ss = satScale()
@@ -478,13 +548,16 @@ export function draw(): void {
 
   const focus = currentFocus()
   const k = S.tf.k
+  const vp = viewport(k)
   const now = performance.now()
   const inFocus = (id: string): boolean => !focus || focus.has(id)
 
   drawHulls(focus, w, h, dpr)
-  drawLinks(focus, k)
+  drawLinks(focus, k, vp)
   entranceActive = false
-  for (const n of S.nodes) drawNode(n, inFocus(n.id) ? 1 : 0.12, k, now)
+  for (const n of S.nodes) {
+    if (visibleNode(n, vp)) drawNode(n, inFocus(n.id) ? 1 : 0.12, k, now)
+  }
 
   if (S.dropTarget) {
     ctx.globalAlpha = 1
@@ -508,9 +581,9 @@ export function draw(): void {
     ctx.stroke()
   }
 
-  drawLabels(focus, k)
-  drawSatellites(focus)
-  drawParticles(focus, k, now)
+  drawLabels(focus, k, vp)
+  drawSatellites(focus, vp)
+  drawParticles(focus, k, now, vp)
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   drawVignette(w, h)
@@ -518,5 +591,5 @@ export function draw(): void {
 
   // partículas, pulso de ghosts o entradas en curso: seguir animando
   const alive = S.openTabs.size > 0 || entranceActive || S.nodes.some(n => n.type === 'ghost')
-  if (alive && document.visibilityState === 'visible') requestDraw()
+  if (alive && document.visibilityState === 'visible') requestAnimationDraw()
 }

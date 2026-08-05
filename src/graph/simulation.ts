@@ -1,5 +1,6 @@
 import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, type Simulation } from 'd3-force'
 import { app } from '../bus'
+import { invalidateGraphGeometry } from '../render'
 import { S } from '../state'
 import type { GraphLink, GraphNode } from '../types'
 import { radius } from './style'
@@ -47,5 +48,8 @@ export function startSimulation(alpha: number): void {
     .velocityDecay(0.3)
     .alphaDecay(0.02)
     .alpha(alpha)
-    .on('tick', () => app.requestDraw())
+    .on('tick', () => {
+      invalidateGraphGeometry()
+      app.requestDraw()
+    })
 }

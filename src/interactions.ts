@@ -26,6 +26,7 @@ import { nodeColor, radius } from './graph/style'
 import { t } from './i18n'
 import { saveStore } from './lib/storage'
 import { short } from './lib/utils'
+import { invalidateGraphGeometry } from './render'
 import { pinsOfView, S, saveLayoutSoon } from './state'
 import { activateTab, closeTab } from './tabs'
 import { setTags, tagsOf } from './tags'
@@ -135,6 +136,7 @@ export const drag = d3drag<HTMLCanvasElement, unknown>()
     const [x, y] = S.tf.invert([px, py])
     ev.subject.fx = x
     ev.subject.fy = y
+    invalidateGraphGeometry()
     const ex = dropExcludes(ev.subject)
     S.dropTarget = ex ? findFolderAt(px, py, ex) : null
     app.requestDraw()

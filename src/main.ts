@@ -8,7 +8,7 @@ import { computeHistory } from './history'
 import { localizeDom, t } from './i18n'
 import { initCanvasInteractions, resetZoom, zoomToNodes } from './interactions'
 import { buildLegend, buildList, buildViews, initPanels } from './panels'
-import { requestDraw } from './render'
+import { invalidateGraphGeometry, requestDraw } from './render'
 import { applySearch, clearSearch, initSearch } from './search'
 import { initSessionsUi, loadSessions } from './sessions'
 import { loadPersistedState, readColors, S } from './state'
@@ -98,6 +98,8 @@ export async function rebuild(fit: boolean): Promise<void> {
     }
   }
 
+  invalidateGraphGeometry()
+
   renderEmptyState(S.nodes.some(n => n.type === 'bm'))
   buildLegend()
   buildList()
@@ -105,6 +107,7 @@ export async function rebuild(fit: boolean): Promise<void> {
   if (fit) {
     resetZoom()
     simulation?.tick(120)
+    invalidateGraphGeometry()
     zoomToNodes(S.nodes, 80, 0)
   }
   if (S.searchQuery) applySearch(S.searchQuery)
