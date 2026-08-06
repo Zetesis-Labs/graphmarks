@@ -12,6 +12,7 @@ interface CreateSpec {
   parentId: string
   title: string
   url?: string
+  index?: number
 }
 
 export interface BookmarksApi {
@@ -60,14 +61,15 @@ function mockChanged(): void {
 }
 
 const mockApi: BookmarksApi = {
-  async create({ parentId, title, url }) {
+  async create({ parentId, title, url, index }) {
     const p = mockLocate(parentId)
     if (!p) throw new Error('carpeta no encontrada')
     const n: RawBookmarkNode = url
       ? { id: String(++mockIdCounter), title, url }
       : { id: String(++mockIdCounter), title, children: [] }
     p.node.children ??= []
-    p.node.children.push(n)
+    if (index !== undefined) p.node.children.splice(index, 0, n)
+    else p.node.children.push(n)
     mockChanged()
     return n
   },
