@@ -4,7 +4,7 @@ import { app } from '../bus'
 import { UNTAGGED } from '../constants'
 import { members } from '../graph/build'
 import { findFolderAt, findHit } from '../graph/hit'
-import { simulation } from '../graph/simulation'
+import { simulation, updateNodePosition } from '../graph/simulation'
 import { dropExclusions } from '../lib/drop-rules'
 import { invalidateGraphGeometry } from '../render'
 import { pinsOfView, S, saveLayoutSoon } from '../state'
@@ -37,7 +37,8 @@ type DragEv = D3DragEvent<HTMLCanvasElement, unknown, GraphNode>
 
 export const drag = d3drag<HTMLCanvasElement, unknown>()
   .subject(ev => {
-    const h = findHit(ev.x, ev.y)
+    const [px, py] = pointer(ev.sourceEvent ?? ev, canvas)
+    const h = findHit(px, py)
     return h.aux ? null : h.node
   })
   .on('start', (ev: DragEv) => {
@@ -46,12 +47,14 @@ export const drag = d3drag<HTMLCanvasElement, unknown>()
     if (!ev.active) simulation?.alphaTarget(0.25).restart()
     ev.subject.fx = ev.subject.x
     ev.subject.fy = ev.subject.y
+    updateNodePosition(ev.subject.id, ev.subject.x, ev.subject.y, ev.subject.x, ev.subject.y)
   })
   .on('drag', (ev: DragEv) => {
     const [px, py] = pointer(ev, canvas)
     const [x, y] = S.tf.invert([px, py])
     ev.subject.fx = x
     ev.subject.fy = y
+    updateNodePosition(ev.subject.id, x, y, x, y)
     invalidateGraphGeometry()
     const ex = dropExcludes(ev.subject)
     S.dropTarget = ex ? findFolderAt(px, py, ex) : null
@@ -64,10 +67,12 @@ export const drag = d3drag<HTMLCanvasElement, unknown>()
       ev.subject.fx = ev.subject.x
       ev.subject.fy = ev.subject.y
       pinsOfView()[ev.subject.id] = { x: ev.subject.x ?? 0, y: ev.subject.y ?? 0 }
+      updateNodePosition(ev.subject.id, ev.subject.x, ev.subject.y, ev.subject.x, ev.subject.y)
       saveLayoutSoon()
     } else {
       ev.subject.fx = null
       ev.subject.fy = null
+      updateNodePosition(ev.subject.id, undefined, undefined, null, null)
       const target = S.dropTarget
       S.dropTarget = null
       handleDrop(ev.subject, target)

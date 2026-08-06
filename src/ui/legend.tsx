@@ -25,8 +25,9 @@ export default function HistoryLegend(): JSX.Element {
 
   const openRangeMenu = (ev: MouseEvent): void => {
     ev.stopPropagation()
-    const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect()
-    showMenu(rect.left, rect.bottom + 6, historyRangeMenu())
+    const target = ev.currentTarget as HTMLElement
+    const rect = target.getBoundingClientRect()
+    showMenu(rect.left, rect.bottom + 6, historyRangeMenu(), target)
   }
 
   return (

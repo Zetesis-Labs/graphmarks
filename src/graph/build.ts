@@ -73,10 +73,24 @@ function assignSlots(list: Cluster[], noSlotIds: Set<string> = new Set()): void 
   }
 }
 
+export function resolveLinkReferences(): void {
+  for (const l of S.links) {
+    if (typeof l.source === 'string') {
+      const s = S.byId.get(l.source)
+      if (s) l.source = s
+    }
+    if (typeof l.target === 'string') {
+      const t = S.byId.get(l.target)
+      if (t) l.target = t
+    }
+  }
+}
+
 function finishGraph(withHostLinks: boolean): void {
   if (withHostLinks) {
     for (const [a, b] of hostPairs(S.nodes.filter(n => n.type === 'bm'))) addLink(a, b, 'host')
   }
+  resolveLinkReferences()
   rebuildNeighbors()
   if (IS_EXT) for (const n of S.nodes) if (n.type === 'bm' && n.url) loadFavicon(n.url)
 }

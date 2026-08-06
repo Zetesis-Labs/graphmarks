@@ -5,8 +5,11 @@ import { menuEl } from './dom'
 
 const [items, setItems] = createSignal<MenuItem[]>([])
 
+let activeTriggerEl: HTMLElement | null = null
+
 export function hideMenu(): void {
   menuEl.hidden = true
+  activeTriggerEl = null
 }
 
 function Menu(): JSX.Element {
@@ -30,7 +33,8 @@ function Menu(): JSX.Element {
   )
 }
 
-export function showMenu(x: number, y: number, list: MenuItem[]): void {
+export function showMenu(x: number, y: number, list: MenuItem[], triggerEl?: HTMLElement | null): void {
+  activeTriggerEl = triggerEl ?? null
   setItems(list)
   menuEl.hidden = false
   // colocar exige medir después de pintar: es trabajo post-layout, no reactivo
@@ -42,7 +46,11 @@ export function showMenu(x: number, y: number, list: MenuItem[]): void {
 export function installMenuDismiss(): void {
   render(() => <Menu />, menuEl)
   document.addEventListener('click', ev => {
-    if (!menuEl.contains(ev.target as Node)) hideMenu()
+    const target = ev.target as Node
+    if (menuEl.contains(target) || activeTriggerEl?.contains(target)) {
+      return
+    }
+    hideMenu()
   })
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Escape') hideMenu()

@@ -58,7 +58,8 @@ const withSolid = { ...common, plugins: [...common.plugins, solidPlugin({ solid:
 const jobs = [
   { ...withSolid, entryPoints: ['src/main.ts'], outfile: 'dist/newtab.js' },
   { ...common, entryPoints: ['src/background.ts'], outfile: 'dist/background.js' },
-  { ...withSolid, entryPoints: ['src/popup.tsx'], outfile: 'dist/popup.js' }
+  { ...withSolid, entryPoints: ['src/popup.tsx'], outfile: 'dist/popup.js' },
+  { ...common, entryPoints: ['src/graph/physics.worker.ts'], outfile: 'dist/physics.worker.js' }
 ]
 
 function firefoxManifest(m) {
@@ -91,7 +92,8 @@ const FIREFOX_FILES = [
   '_locales',
   'dist/newtab.js',
   'dist/background.js',
-  'dist/popup.js'
+  'dist/popup.js',
+  'dist/physics.worker.js'
 ]
 
 async function stageFirefox() {
