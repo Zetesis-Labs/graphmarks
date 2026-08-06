@@ -3,8 +3,13 @@
 ## Proyecto
 
 Extensión de Chrome (Manifest V3) en TypeScript que reemplaza la nueva pestaña
-por un grafo interactivo de marcadores. Sin framework: canvas 2D + módulos de
-`d3-*` (force/zoom/drag/selection), empaquetado con esbuild a dos bundles IIFE.
+por un grafo interactivo de marcadores: canvas 2D + módulos de `d3-*`
+(force/zoom/drag/selection), empaquetado con esbuild a tres bundles IIFE
+(newtab, background, popup).
+
+**El grafo no usa framework y no va a usarlo**: es canvas y d3, y el estado
+vive en `S`. La UI de formulario sí — el popup está escrito en **SolidJS**
+como piloto (ver «Solid» abajo).
 
 ## Arquitectura
 
@@ -18,11 +23,36 @@ src/
   env.ts           IS_EXT / HAS_STORAGE / HAS_SYNC + pestañas mock
   browser-port.ts  puerto de datos: adaptadores chrome/mock (multinavegador.md)
   render.ts        pintado del canvas (sin lógica de dominio)
+  popup.tsx        página del botón de la barra (SolidJS, bundle aparte)
   graph/           build (topologías) · style (color/radio) · simulation · hit
   ui/              dom (refs tipadas) · dialog · menu · toast
   lib/             utilidades puras y testeables (utils, tag-utils, storage)
   tabs · sessions · tags · bookmarks · history · search · panels · dialogs · transfer
+  settings · hygiene · graph-tab · custom · onboarding
 ```
+
+## Solid
+
+`popup.tsx` es el **piloto de SolidJS**, elegido porque es una página aparte,
+con su propio bundle y sin acceso al estado del grafo: el radio de explosión
+es cero. Si convence, el siguiente paso son los diálogos y el panel de ajustes
+—que va a crecer con login y suscripciones—, después los paneles. **El grafo
+nunca.**
+
+Tres cosas que conviene saber antes de ampliarlo:
+
+- **El compilador de Solid es un plugin de Babel**, no lo hace esbuild. Por eso
+  `scripts/build.mjs` aplica `solidPlugin` *solo* al job del popup: los otros
+  dos bundles siguen siendo esbuild puro y rápido.
+- **Dos modelos de estado.** `S` es un objeto mutable que el canvas lee a 60
+  fps; Solid necesita señales. Mientras el piloto siga acotado no hay conflicto
+  (el popup solo lee `S.settings` y `S.tagsMap` una vez al arrancar), pero
+  llevar Solid a los paneles obliga a decidir esto de verdad.
+- **AMO avisa del `innerHTML`** que Solid usa en su helper `template()` sobre
+  un `<template>` desconectado con HTML estático. `pnpm lint:firefox` lo
+  reporta como *warning*, no como error, igual que el de `tabs.split`. Si algún
+  día bloqueara, la salida es parchear `template()` con un `onLoad` de esbuild,
+  como ya se hace con el `html()` de `d3-selection`.
 
 **Reglas de dependencia:**
 

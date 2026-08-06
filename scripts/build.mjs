@@ -8,6 +8,7 @@
    idénticos; solo cambia el manifest. Cargar con `pnpm dev:firefox`. */
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { build, context } from 'esbuild'
+import { solidPlugin } from 'esbuild-plugin-solid'
 
 const watch = process.argv.includes('--watch')
 const LOCALES = ['es', 'en']
@@ -48,10 +49,18 @@ const common = {
   plugins: [stubD3Html]
 }
 
+/* Solo el popup usa Solid. Su compilador es un plugin de Babel (esbuild no
+   sabe compilar JSX de Solid por su cuenta), así que se aplica únicamente a
+   ese bundle: el grafo y el service worker siguen siendo esbuild puro. */
 const jobs = [
   { ...common, entryPoints: ['src/main.ts'], outfile: 'dist/newtab.js' },
   { ...common, entryPoints: ['src/background.ts'], outfile: 'dist/background.js' },
-  { ...common, entryPoints: ['src/popup.ts'], outfile: 'dist/popup.js' }
+  {
+    ...common,
+    entryPoints: ['src/popup.tsx'],
+    outfile: 'dist/popup.js',
+    plugins: [...common.plugins, solidPlugin({ solid: { generate: 'dom' } })]
+  }
 ]
 
 function firefoxManifest(m) {
