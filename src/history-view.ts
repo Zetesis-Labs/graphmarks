@@ -60,13 +60,27 @@ async function queryHistory(range: ResolvedHistoryRange): Promise<PageVisits[]> 
   const port = activePort()
   const pages = await port.historySearch(range.start, range.end, SEARCH_MAX_RESULTS)
   const valid = pages.filter(page => /^https?:/.test(page.url ?? ''))
-  return concurrentMap(valid, async page => {
+  const mapped = await concurrentMap(valid, async page => {
     const visits = await port.historyVisits(page.url ?? '', range.start, range.end)
-    return {
-      page,
-      visits: visits.filter(v => (v.visitTime ?? 0) >= range.start && (v.visitTime ?? 0) <= range.end)
+    const inRange = visits.filter(v => (v.visitTime ?? 0) >= range.start && (v.visitTime ?? 0) <= range.end)
+    if (inRange.length > 0) return { page, visits: inRange }
+    if (page.lastVisitTime && page.lastVisitTime >= range.start && page.lastVisitTime <= range.end) {
+      return {
+        page,
+        visits: [
+          {
+            id: String(page.id ?? '0'),
+            visitId: `p:${page.id ?? '0'}`,
+            referringVisitId: '0',
+            transition: 'link',
+            visitTime: page.lastVisitTime
+          }
+        ]
+      }
     }
+    return { page, visits: [] }
   })
+  return mapped.filter(p => p.visits.length > 0)
 }
 
 /** Funde variantes de la misma página (trackers, orden de parámetros, fragmento). */
