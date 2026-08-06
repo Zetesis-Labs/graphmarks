@@ -5,10 +5,11 @@ import { menuEl } from './dom'
 
 const [items, setItems] = createSignal<MenuItem[]>([])
 
-let justOpenedTime = 0
+let activeTriggerEl: HTMLElement | null = null
 
 export function hideMenu(): void {
   menuEl.hidden = true
+  activeTriggerEl = null
 }
 
 function Menu(): JSX.Element {
@@ -32,10 +33,10 @@ function Menu(): JSX.Element {
   )
 }
 
-export function showMenu(x: number, y: number, list: MenuItem[]): void {
+export function showMenu(x: number, y: number, list: MenuItem[], triggerEl?: HTMLElement | null): void {
+  activeTriggerEl = triggerEl ?? null
   setItems(list)
   menuEl.hidden = false
-  justOpenedTime = performance.now()
   // colocar exige medir después de pintar: es trabajo post-layout, no reactivo
   const r = menuEl.getBoundingClientRect()
   menuEl.style.left = `${Math.min(x, innerWidth - r.width - 8)}px`
@@ -45,8 +46,11 @@ export function showMenu(x: number, y: number, list: MenuItem[]): void {
 export function installMenuDismiss(): void {
   render(() => <Menu />, menuEl)
   document.addEventListener('click', ev => {
-    if (performance.now() - justOpenedTime < 50) return
-    if (!menuEl.contains(ev.target as Node)) hideMenu()
+    const target = ev.target as Node
+    if (menuEl.contains(target) || activeTriggerEl?.contains(target)) {
+      return
+    }
+    hideMenu()
   })
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Escape') hideMenu()
