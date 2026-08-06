@@ -81,7 +81,7 @@ export async function persistTags(): Promise<void> {
       if (Object.keys(changed).length) await chrome.storage.sync.set(changed)
       return
     } catch (e) {
-      void import('./ui/toast').then(m => m.toast(t('toastSyncFallback', (e as Error).message ?? String(e))))
+      app.notify(t('toastSyncFallback', (e as Error).message ?? String(e)))
     }
   }
   await saveStore('tags', S.tagsMap)

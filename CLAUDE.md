@@ -124,6 +124,13 @@ Base de desarrollo del proyecto, en orden de autoridad:
 - **ESM** (`"type": "module"`), **pnpm**, **Biome** para lint y formato
   (no ESLint/Prettier): 2 espacios, 120 columnas, comillas simples, sin
   punto y coma innecesario, sin comas finales.
+- **Todos los imports arriba.** Nada de `import()` dinámico ni `lazy()` salvo
+  fuerza mayor real; si evitarlo exige refactor, se hace el refactor —se
+  arregla la causa (ciclo, acoplamiento, entorno de test), no el síntoma. Por
+  eso vitest corre con `happy-dom` y un esqueleto del DOM en `vitest.setup.ts`:
+  así ningún módulo necesita diferirse para ser testeable. Los avisos desde
+  módulos compartidos con el popup salen por `app.notify` (bus), no importando
+  `ui/toast`.
 - **Conventional commits** en español, y **nunca git sin petición explícita**.
 - **Comentarios solo para lo que el código no puede decir**: límites de las
   APIs de Chrome, decisiones de diseño y trampas conocidas. Nada de narrar
@@ -173,7 +180,7 @@ pnpm dev          # esbuild --watch
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # biome check
 pnpm lint:fix
-pnpm test         # vitest (solo lib/ puro)
+pnpm test         # vitest (happy-dom: cualquier módulo es importable)
 pnpm smoke:ui     # sonda CDP sobre la preview: modales, paleta, chips reactivos
 pnpm verify       # lint + typecheck + test + build (lo mismo que CI)
 ```
@@ -189,6 +196,9 @@ pnpm lint && pnpm typecheck
 Corrige en contexto antes de seguir; no acumules errores hasta el final.
 
 ## Testing
+
+El entorno es `happy-dom` con un esqueleto del DOM estático, así que
+cualquier módulo se puede importar desde un spec sin trucos.
 
 Política pragmática (test the seams): se testea **lógica pura y no trivial**
 —matching de URLs por prefijo, normalización de rutas, agrupación por dominio,

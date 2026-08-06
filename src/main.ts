@@ -35,6 +35,7 @@ import { canvas, installErrorSurface } from './ui/dom'
 import { initEmptyState } from './ui/empty'
 import { installMenuDismiss } from './ui/menu'
 import { toast } from './ui/toast'
+import { strategies } from './view-strategy'
 
 installErrorSurface()
 localizeDom()
@@ -143,6 +144,7 @@ app.zoomToNodes = zoomToNodes
 app.applySearch = applySearch
 app.clearSearch = clearSearch
 app.startGuide = startOnboarding
+app.notify = toast
 
 function installChromeListeners(): void {
   if (!IS_EXT) return
@@ -191,6 +193,7 @@ function collectUrls(items: RawBookmarkNode[], acc: Set<string>): void {
 async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search)
   await loadPersistedState(params)
+  S.strategy = strategies[S.viewMode]
   if (await maybeReleaseNewTab(S.settings, params)) return
   await resolveCurrentWindow()
   await loadSessions()

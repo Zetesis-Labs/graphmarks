@@ -1,17 +1,16 @@
-import { lazy } from 'solid-js'
+import { adopt, api, safeOp } from './bookmarks'
 import { OTHER_CONTAINER } from './constants'
+import { confirmDeleteTag, promptRenameTag, promptSaveHistoryNodes } from './dialogs'
 import { buildGraphDomains, buildGraphFolders, buildGraphTags, members } from './graph/build'
+import { buildHistoryGraph, muteHistoryDomain } from './history-view'
 import { t } from './i18n'
+import { zoomToNodes } from './interactions'
 import { short } from './lib/utils'
 import { S } from './state'
 import { setTags, tagsOf } from './tags'
 import type { MenuItem, ViewMode, ViewStrategy } from './types'
-
-/* La leyenda y el build del historial van en diferido a propósito, aunque ya
-   no haya ciclo que esquivar: mantienen view-strategy importable sin DOM (los
-   specs lo cargan en Node y ui/legend e history-view arrastran ui/dom). En el
-   bundle IIFE esbuild los inline-a, así que en el navegador no difieren nada. */
-const HistoryLegend = lazy(() => import('./ui/legend'))
+import HistoryLegend from './ui/legend'
+import { toast } from './ui/toast'
 
 /* --- helpers compartidos --- */
 
@@ -43,23 +42,19 @@ const foldersStrategy: ViewStrategy = {
   },
 
   handleDrop(subj, target) {
-    void import('./bookmarks').then(bm => {
-      if (subj.type === 'ghost') {
-        void bm.safeOp(() => bm.adopt(subj, target.raw ?? ''))
-        return
-      }
-      const oldParent = subj.parentId
-      void bm.safeOp(async () => {
-        await bm.api.move(subj.raw ?? '', { parentId: target.raw ?? '' })
-        const { toast } = await import('./ui/toast')
-        toast(
-          t('toastMovedTo', short(subj.title), short(target.title)),
-          oldParent
-            ? () =>
-                void bm.safeOp(() => bm.api.move(subj.raw ?? '', { parentId: S.byId.get(oldParent)?.raw ?? oldParent }))
-            : null
-        )
-      })
+    if (subj.type === 'ghost') {
+      void safeOp(() => adopt(subj, target.raw ?? ''))
+      return
+    }
+    const oldParent = subj.parentId
+    void safeOp(async () => {
+      await api.move(subj.raw ?? '', { parentId: target.raw ?? '' })
+      toast(
+        t('toastMovedTo', short(subj.title), short(target.title)),
+        oldParent
+          ? () => void safeOp(() => api.move(subj.raw ?? '', { parentId: S.byId.get(oldParent)?.raw ?? oldParent }))
+          : null
+      )
     })
   },
 
@@ -93,18 +88,15 @@ const tagsStrategy: ViewStrategy = {
   },
 
   handleDrop(subj, target) {
-    void import('./bookmarks').then(bm => {
-      if (subj.type === 'ghost') {
-        void bm.safeOp(() => bm.adopt(subj, OTHER_CONTAINER, target.tag ?? undefined))
-        return
-      }
-      const url = subj.url ?? ''
-      const oldTags = tagsOf(url)
-      void bm.safeOp(async () => {
-        await setTags(url, [...oldTags, target.tag ?? ''])
-        const { toast } = await import('./ui/toast')
-        toast(t('toastTagAdded', target.tag ?? '', short(subj.title)), () => void setTags(url, oldTags))
-      })
+    if (subj.type === 'ghost') {
+      void safeOp(() => adopt(subj, OTHER_CONTAINER, target.tag ?? undefined))
+      return
+    }
+    const url = subj.url ?? ''
+    const oldTags = tagsOf(url)
+    void safeOp(async () => {
+      await setTags(url, [...oldTags, target.tag ?? ''])
+      toast(t('toastTagAdded', target.tag ?? '', short(subj.title)), () => void setTags(url, oldTags))
     })
   },
 
@@ -113,25 +105,19 @@ const tagsStrategy: ViewStrategy = {
     return [
       {
         label: t('menuFrame'),
-        action: () => {
-          void import('./interactions').then(m => m.zoomToNodes(members(n), 90))
-        }
+        action: () => zoomToNodes(members(n), 90)
       },
       ...(n.tag
         ? [
             { sep: true } as MenuItem,
             {
               label: t('menuRenameTag'),
-              action: () => {
-                void import('./dialogs').then(m => m.promptRenameTag(n.tag ?? ''))
-              }
+              action: () => promptRenameTag(n.tag ?? '')
             },
             {
               label: t('menuDeleteTag', n.count ?? 0),
               danger: true,
-              action: () => {
-                void import('./dialogs').then(m => m.confirmDeleteTag(n.tag ?? ''))
-              }
+              action: () => confirmDeleteTag(n.tag ?? '')
             }
           ]
         : [])
@@ -177,7 +163,7 @@ const domainsStrategy: ViewStrategy = {
 /* ========================================================================== */
 
 const historyStrategy: ViewStrategy = {
-  build: async () => (await import('./history-view')).buildHistoryGraph(),
+  build: () => buildHistoryGraph(),
   supportsGhosts: false,
   supportsPresentation: false,
   supportsHeat: false,
@@ -194,17 +180,13 @@ const historyStrategy: ViewStrategy = {
     return [
       {
         label: t('menuFrame'),
-        action: () => {
-          void import('./interactions').then(m => m.zoomToNodes(members(n), 90))
-        }
+        action: () => zoomToNodes(members(n), 90)
       },
       ...(unsaved.length
         ? [
             {
               label: t('menuSaveUnsaved', unsaved.length),
-              action: () => {
-                void import('./dialogs').then(m => m.promptSaveHistoryNodes(unsaved))
-              }
+              action: () => promptSaveHistoryNodes(unsaved)
             }
           ]
         : []),
@@ -214,9 +196,7 @@ const historyStrategy: ViewStrategy = {
             {
               label: t('menuMuteDomain', n.title),
               danger: true,
-              action: () => {
-                void import('./history-view').then(hv => hv.muteHistoryDomain(n.title))
-              }
+              action: () => void muteHistoryDomain(n.title)
             }
           ]
         : [])

@@ -101,15 +101,17 @@ function TourOverlay(): JSX.Element {
         <p>{step()?.body ?? ''}</p>
         <div class="actions">
           <span class="count">{t('tourCount', idx() + 1, steps().length)}</span>
-          <button type="button" onClick={() => endTour()}>
+          {/* on:click nativo: el root del tour corta la propagación para que
+              nada atraviese el velo, y eso mataría los onClick delegados */}
+          <button type="button" on:click={() => endTour()}>
             {t('tourSkip')}
           </button>
           <Show when={idx() > 0}>
-            <button type="button" onClick={() => go(idx() - 1)}>
+            <button type="button" on:click={() => go(idx() - 1)}>
               {t('tourPrev')}
             </button>
           </Show>
-          <button type="button" class="primary" onClick={() => (isLast() ? endTour() : go(idx() + 1))}>
+          <button type="button" class="primary" on:click={() => (isLast() ? endTour() : go(idx() + 1))}>
             {isLast() ? (step()?.cta ?? t('tourNext')) : t('tourNext')}
           </button>
         </div>

@@ -265,8 +265,6 @@ export function saveLayoutSoon(): void {
 export async function loadPersistedState(params: URLSearchParams): Promise<void> {
   const view = params.get('view') ?? (await loadStore<string>('view', 'folders'))
   S.viewMode = view === 'tags' || view === 'domains' || view === 'history' ? view : 'folders'
-  const { strategies } = await import('./view-strategy')
-  S.strategy = strategies[S.viewMode]
   S.onlyOpen = params.get('filter') === 'open' || (await loadStore('onlyOpen', false))
   S.showGhosts = await loadStore('ghosts', true)
   S.winFilter = await loadStore<WinFilter>('winFilter', 'all')

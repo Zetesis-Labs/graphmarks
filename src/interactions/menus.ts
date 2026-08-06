@@ -13,6 +13,7 @@ import {
 } from '../dialogs'
 import { members } from '../graph/build'
 import { nodeColor } from '../graph/style'
+import { openHygieneDialog } from '../hygiene'
 import { t } from '../i18n'
 import { saveStore } from '../lib/storage'
 import { S } from '../state'
@@ -44,7 +45,7 @@ export function backgroundMenu(): MenuItem[] {
     { sep: true },
     { label: t('menuExport'), action: () => exportData() },
     { label: t('menuImport'), action: () => importData() },
-    { label: t('menuHygiene'), action: () => void import('../hygiene').then(m => m.openHygieneDialog()) },
+    { label: t('menuHygiene'), action: () => openHygieneDialog() },
     { sep: true },
     { label: t('menuShowGuide'), action: () => app.startGuide() }
   ]

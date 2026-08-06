@@ -177,6 +177,30 @@ try {
   check('radios presentes', (await evaluate(`document.querySelectorAll('#dlg input[type=radio]').length`)) >= 5)
   await evaluate(`document.getElementById('dlg').close()`)
 
+  console.log('— tour de onboarding —')
+  await evaluate(`[...document.querySelectorAll('#ctxmenu button'), ...[]].length`) // limpiar estado previo
+  await typeSearch('>guía')
+  await wait(400)
+  await evaluate(
+    `document.querySelector('#results li')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))`
+  )
+  await wait(1200)
+  check('el tour arranca', (await evaluate(`!!document.getElementById('tour')`)) === true)
+  const stepBefore = await evaluate(`document.querySelector('#tour .count')?.textContent`)
+  await evaluate(`[...document.querySelectorAll('#tour .actions button')].at(-1)?.click()`)
+  await wait(500)
+  const stepAfter = await evaluate(`document.querySelector('#tour .count')?.textContent`)
+  check(
+    'el botón siguiente avanza de paso',
+    Boolean(stepBefore && stepAfter && stepBefore !== stepAfter),
+    `antes=${stepBefore} después=${stepAfter}`
+  )
+  await evaluate(
+    `[...document.querySelectorAll('#tour .actions button')].find(b => !b.classList.contains('primary'))?.click()`
+  )
+  await wait(400)
+  check('saltar cierra el tour', (await evaluate(`!!document.getElementById('tour')`)) === false)
+
   console.log('— consola —')
   check('sin errores ni avisos', consoleErrors.length === 0, consoleErrors.slice(0, 4).join(' | '))
 
