@@ -1,10 +1,9 @@
 import { app } from './bus'
 import { TAG_BUCKETS } from './constants'
-import { HAS_SYNC } from './env'
 import { t } from './i18n'
 import { loadStore, saveStore } from './lib/storage'
 import { normTags, tagBucket } from './lib/tag-utils'
-import { S } from './state'
+import { S, syncActive } from './state'
 import type { TagsMap } from './types'
 
 export function tagsOf(url: string): string[] {
@@ -32,7 +31,7 @@ export { normTags, tagBucket }
 let lastBuckets: Record<string, string> = {}
 
 export async function loadTags(): Promise<TagsMap> {
-  if (HAS_SYNC) {
+  if (syncActive()) {
     try {
       const all = await chrome.storage.sync.get(null)
       const merged: TagsMap = {}
@@ -60,7 +59,7 @@ export async function loadTags(): Promise<TagsMap> {
 }
 
 export async function persistTags(): Promise<void> {
-  if (HAS_SYNC) {
+  if (syncActive()) {
     try {
       const buckets: Record<string, TagsMap> = {}
       for (let i = 0; i < TAG_BUCKETS; i++) buckets[`tags_${i}`] = {}

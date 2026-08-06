@@ -26,6 +26,7 @@ export const viewsEl = el<HTMLElement>('views')
 export const tabcountEl = el<HTMLButtonElement>('tabcount')
 export const winchipEl = el<HTMLButtonElement>('winchip')
 export const sessionsEl = el<HTMLButtonElement>('sessions')
+export const settingsBtn = el<HTMLButtonElement>('settings-btn')
 
 export function showFatal(msg: string): void {
   emptyEl.hidden = false

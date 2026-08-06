@@ -25,8 +25,11 @@ export function sessionTabCount(s: SavedSession): number {
  * dependen del tamaño de pantalla de cada equipo.
  */
 export async function persistSessions(): Promise<void> {
-  const res = await saveChunked('sessions', S.savedSessions)
-  if (!res.synced && IS_EXT) toast(t('toastSessionLocalOnly', res.reason ?? t('toastSessionQuota')))
+  const res = await saveChunked('sessions', S.savedSessions, S.settings.syncEnabled)
+  // con sync apagado a propósito no hay nada que avisar: local es lo pedido
+  if (!res.synced && IS_EXT && S.settings.syncEnabled) {
+    toast(t('toastSessionLocalOnly', res.reason ?? t('toastSessionQuota')))
+  }
 }
 
 export function updateSessionsChip(): void {
@@ -320,6 +323,6 @@ export function initSessionsUi(): void {
 }
 
 export async function loadSessions(): Promise<void> {
-  S.savedSessions = await loadChunked<SavedSession[]>('sessions', [])
+  S.savedSessions = await loadChunked<SavedSession[]>('sessions', [], S.settings.syncEnabled)
   updateSessionsChip()
 }

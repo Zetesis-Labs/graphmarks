@@ -22,10 +22,10 @@ function chunkString(s: string, size: number): string[] {
   return out
 }
 
-export async function saveChunked(prefix: string, value: unknown): Promise<SyncResult> {
+export async function saveChunked(prefix: string, value: unknown, enabled = true): Promise<SyncResult> {
   // el espejo local siempre se escribe: es la red de seguridad si sync falla
   await saveStore(prefix, value)
-  if (!HAS_SYNC) return { synced: false, reason: 'sync no disponible' }
+  if (!HAS_SYNC || !enabled) return { synced: false, reason: 'sync no disponible' }
 
   const chunks = chunkString(JSON.stringify(value), CHUNK_BYTES)
   const payload: Record<string, unknown> = { [`${prefix}__n`]: chunks.length }
@@ -46,8 +46,8 @@ export async function saveChunked(prefix: string, value: unknown): Promise<SyncR
   }
 }
 
-export async function loadChunked<T>(prefix: string, def: T): Promise<T> {
-  if (HAS_SYNC) {
+export async function loadChunked<T>(prefix: string, def: T, enabled = true): Promise<T> {
+  if (HAS_SYNC && enabled) {
     try {
       const all = await chrome.storage.sync.get(null)
       const n = all[`${prefix}__n`] as number | undefined
