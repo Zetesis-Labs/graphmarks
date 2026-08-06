@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { S } from '../state'
+import { registerStrategies, S } from '../state'
 import type { GraphNode, TabInfo } from '../types'
 import { applyFolderPresentation } from './presentation'
 
@@ -58,9 +58,11 @@ function seedGraph(): void {
 
 import { strategies } from '../view-strategy'
 
+registerStrategies(strategies)
+
 beforeEach(() => {
+  // strategy se deriva de viewMode: basta con fijar la vista
   S.viewMode = 'folders'
-  S.strategy = strategies.folders
   S.folderPrefs = {}
   S.activeSubgraph = null
   S.expandedFolders = new Set()

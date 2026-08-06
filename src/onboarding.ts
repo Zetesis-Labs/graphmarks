@@ -7,13 +7,12 @@ import { nodeMenu } from './interactions'
 import { loadStore, saveStore } from './lib/storage'
 import { type Rect, unionRects } from './lib/tour-place'
 import { changedKeys, NEUTRAL_SCENE, resolveScene, type TourScene } from './lib/tour-scene'
-import { refreshPanels } from './panels'
+import { refreshPanels, setActiveView } from './panels'
 import { S } from './state'
 import type { GraphNode, TagsMap, ViewMode } from './types'
 import { canvas, listPanel, menuEl, resultsEl, searchBox, sessionsEl, tabcountEl, viewsEl } from './ui/dom'
 import { hideMenu, showMenu } from './ui/menu'
 import { isTourOpen, startTour, type TourStep } from './ui/tour'
-import { strategies } from './view-strategy'
 
 /**
  * Guía del primer uso: un modo demo sobre el grafo de muestra (window.MOCK_TREE)
@@ -33,9 +32,7 @@ async function enterDemo(): Promise<void> {
   saved = { viewMode: S.viewMode, onlyOpen: S.onlyOpen, tagsMap: S.tagsMap }
   S.demo = true
   S.onlyOpen = false
-  S.viewMode = 'folders'
-  S.strategy = strategies.folders
-  S.activeSubgraph = null
+  setActiveView('folders')
   S.tagsMap = { ...(window.SEED_TAGS ?? {}) }
   scene = NEUTRAL_SCENE
   sceneGen += 1
@@ -47,8 +44,7 @@ async function enterDemo(): Promise<void> {
 async function exitDemo(): Promise<void> {
   if (!saved) return
   S.demo = false
-  S.viewMode = saved.viewMode
-  S.strategy = strategies[saved.viewMode]
+  setActiveView(saved.viewMode)
   S.onlyOpen = saved.onlyOpen
   S.tagsMap = saved.tagsMap
   saved = null
@@ -130,12 +126,7 @@ async function applyScene(next: TourScene): Promise<void> {
     } else app.clearSearch()
   }
 
-  if (changed.has('view')) {
-    S.viewMode = next.view
-    S.strategy = strategies[next.view]
-    S.activeSubgraph = null
-    refreshPanels()
-  }
+  if (changed.has('view')) setActiveView(next.view)
   if (changed.has('onlyOpen')) S.onlyOpen = next.onlyOpen
 
   const rebuilt = changed.has('view') || changed.has('onlyOpen')

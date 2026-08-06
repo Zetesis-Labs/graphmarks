@@ -36,7 +36,8 @@ export interface FaviconRecord {
  */
 export interface AppState {
   viewMode: ViewMode
-  strategy: ViewStrategy
+  /** Derivado de `viewMode`: solo getter, ver registerStrategies. */
+  readonly strategy: ViewStrategy
   tagsMap: TagsMap
   nodes: GraphNode[]
   links: GraphLink[]
@@ -85,10 +86,10 @@ export interface AppState {
 }
 
 /**
- * Estrategia inerte hasta que `loadPersistedState` carga la real (siempre
- * antes de cualquier render). No se importa `view-strategy` estáticamente a
- * propósito: arrastraría el grafo entero (build, d3, tags) a todo bundle que
- * toque `S` — el popup pesaba un tercio más solo por esta línea.
+ * Estrategia inerte mientras el arranque no ha registrado las reales (ver
+ * `registerStrategies`). `state` no importa `view-strategy` a propósito:
+ * arrastraría el grafo entero (build, d3, tags) a todo bundle que toque `S`
+ * — el popup pesaba un tercio más solo por esa línea.
  */
 const bootStrategy: ViewStrategy = {
   build: () => true,
@@ -192,7 +193,6 @@ export function readColors(): void {
 
 const REACTIVE_FIELDS = [
   'viewMode',
-  'strategy',
   'settings',
   'onlyOpen',
   'showGhosts',
@@ -230,6 +230,23 @@ function reactiveField<K extends keyof AppState>(key: K): void {
   })
 }
 for (const key of REACTIVE_FIELDS) reactiveField(key)
+
+/* `strategy` no se almacena: ES `viewMode` resuelto. Tenerlo como campo aparte
+   permitía que divergieran —loadPersistedState dejaba de hecho una ventana en
+   la que lo hacían— así que aquí solo hay getter: el tipo es readonly y
+   asignarlo tampoco pasaría de runtime. Al derivar de viewMode, que sí es
+   señal, la reactividad viaja sola. El mapa lo registra el arranque. */
+let registry: Record<ViewMode, ViewStrategy> | null = null
+
+export function registerStrategies(map: Record<ViewMode, ViewStrategy>): void {
+  registry = map
+}
+
+Object.defineProperty(S, 'strategy', {
+  get: () => registry?.[S.viewMode] ?? bootStrategy,
+  enumerable: true,
+  configurable: true
+})
 
 /**
  * Lo que la señal por campo no cubre: «el grafo se reconstruyó». Nodos,

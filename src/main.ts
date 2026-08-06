@@ -18,7 +18,7 @@ import { invalidateGraphGeometry, requestDraw } from './render'
 import { applySearch, clearSearch, initSearch } from './search'
 import { initSessionsUi, loadSessions } from './sessions'
 import { initSettingsUi } from './settings'
-import { loadPersistedState, readColors, S, syncActive } from './state'
+import { loadPersistedState, readColors, registerStrategies, S, syncActive } from './state'
 import {
   checkPermissions,
   clearBadgeWarn,
@@ -145,6 +145,7 @@ app.applySearch = applySearch
 app.clearSearch = clearSearch
 app.startGuide = startOnboarding
 app.notify = toast
+registerStrategies(strategies)
 
 function installChromeListeners(): void {
   if (!IS_EXT) return
@@ -193,7 +194,6 @@ function collectUrls(items: RawBookmarkNode[], acc: Set<string>): void {
 async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search)
   await loadPersistedState(params)
-  S.strategy = strategies[S.viewMode]
   if (await maybeReleaseNewTab(S.settings, params)) return
   await resolveCurrentWindow()
   await loadSessions()

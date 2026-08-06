@@ -9,7 +9,6 @@ import { saveStore } from './lib/storage'
 import { bumpGraphVersion, graphVersion, S } from './state'
 import type { Cluster, GraphNode, ViewMode } from './types'
 import { legendEl, listPanel, listToggle, viewsEl } from './ui/dom'
-import { strategies } from './view-strategy'
 
 /**
  * Cabecera y panel de lista. Se montan una vez y reaccionan a `graphVersion`,
@@ -25,16 +24,23 @@ function clusterDotColor(c: Cluster): string {
   return slot >= 0 ? `var(${SERIES_VARS[slot]})` : 'var(--other)'
 }
 
-/** Único punto de cambio de vista: botones de la cabecera y paleta comparten esto. */
+/**
+ * Deja lista la vista activa sin reconstruir: quien llama decide cuándo, porque
+ * la guía agrupa ese rebuild con los demás cambios de escena.
+ */
+export function setActiveView(mode: ViewMode): void {
+  S.viewMode = mode
+  S.activeSubgraph = null
+  S.expandedFolders.clear()
+  refreshPanels()
+}
+
+/** Único punto de cambio de vista del usuario: cabecera y paleta comparten esto. */
 export function switchView(mode: ViewMode): void {
   void (async () => {
     if (mode === S.viewMode) return
-    S.activeSubgraph = null
-    S.expandedFolders.clear()
-    S.viewMode = mode
-    S.strategy = strategies[mode]
+    setActiveView(mode)
     await saveStore('view', mode)
-    refreshPanels()
     await app.rebuild(false)
     zoomToNodes(S.nodes, 80)
   })()

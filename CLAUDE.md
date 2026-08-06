@@ -64,6 +64,11 @@ Cuatro cosas que conviene saber:
   Para lecturas derivadas del grafo (clusters, allBms, byId) existe
   **`graphVersion()`**, el contador que `rebuild()` incrementa vía
   `refreshPanels()`: llámalo antes de leerlas para declarar la dependencia.
+- **Lo derivable no se almacena.** `S.strategy` no es un campo: es un getter
+  sobre `strategies[S.viewMode]` (readonly en el tipo, así que asignarlo no
+  compila). Tener ambos permitía que divergieran. El mapa lo inyecta el
+  arranque con `registerStrategies`, porque `state` no puede importar
+  `view-strategy` sin arrastrar el grafo a todo bundle que toque `S`.
 - **Un campo reactivo se REEMPLAZA, no se muta.** `S.tagsMap[url] = x` o
   `S.historyMuted.add(d)` no disparan nada: asigna un objeto/array/Set nuevo.
   Los contenedores que sí se mutan en sitio (expandedFolders, pinned,
