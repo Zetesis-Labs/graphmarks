@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.0](https://github.com/Zetesis-Labs/graphmarks/compare/v0.7.0...v0.8.0) (2026-08-06)
+
+
+### Features
+
+* **hygiene:** revisión de duplicados, carpetas vacías y marcadores invisibles ([8bd43f3](https://github.com/Zetesis-Labs/graphmarks/commit/8bd43f3f5e8673ec17101107542e86a54c893cb6))
+* **interactions:** añadir Command Palette (&gt;), navegación por teclado y recentrado de viewport ([a7659a7](https://github.com/Zetesis-Labs/graphmarks/commit/a7659a79e74c495ded00a99abd33c013c2e78532))
+* **interactions:** Command Palette (&gt;), navegación por teclado y recentrado de viewport ([30db817](https://github.com/Zetesis-Labs/graphmarks/commit/30db817c1a8d91b9b2b8823f9c3076a1145cddbe))
+* panel de ajustes, higiene de marcadores y popup de guardado rápido ([cfa6f62](https://github.com/Zetesis-Labs/graphmarks/commit/cfa6f62ea752f427edd26520ff351f85757e4986))
+* **popup:** guardado rápido de la pestaña actual desde el botón de la barra ([a2d03f3](https://github.com/Zetesis-Labs/graphmarks/commit/a2d03f3f17733bd81a64acd78259dbd070961f7a))
+* **settings:** panel de ajustes con apertura, botón de la barra, atajos y sincronización ([251a870](https://github.com/Zetesis-Labs/graphmarks/commit/251a8706c84f46fde330ee66dbcd6cdd2b6d6b7b))
+* triaje de marcadores y silencio de dominios en el historial ([ce6273f](https://github.com/Zetesis-Labs/graphmarks/commit/ce6273fd54bdb9bdba1dc9a58f3087138991e67a))
+* triaje de marcadores y silencio de dominios en el historial ([56bd8de](https://github.com/Zetesis-Labs/graphmarks/commit/56bd8dec6a47c943ad8665d173b9977603ae637d))
+
 ## [0.7.0](https://github.com/Zetesis-Labs/graphmarks/compare/v0.6.5...v0.7.0) (2026-08-05)
 
 
