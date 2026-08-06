@@ -91,7 +91,7 @@ export interface AppState {
  * toque `S` — el popup pesaba un tercio más solo por esta línea.
  */
 const bootStrategy: ViewStrategy = {
-  build: () => {},
+  build: () => true,
   handleDrop: () => {},
   isDropTarget: () => false,
   supportsGhosts: false,
@@ -198,6 +198,7 @@ const REACTIVE_FIELDS = [
   'showGhosts',
   'winFilter',
   'searchQuery',
+  'lastOpenKey',
   'tagsMap',
   'savedSessions',
   'openTabs',
@@ -212,11 +213,18 @@ const REACTIVE_FIELDS = [
   'demo'
 ] as const satisfies readonly (keyof AppState)[]
 
+/** Congela lo congelable: una mutación en sitio pasa de bug mudo a TypeError. */
+function freezeShallow<T>(v: T): T {
+  // Map y Set no se congelan de forma útil (freeze no bloquea set/add)
+  if (v && typeof v === 'object' && !(v instanceof Map) && !(v instanceof Set)) Object.freeze(v)
+  return v
+}
+
 function reactiveField<K extends keyof AppState>(key: K): void {
-  const [get, set] = createSignal<AppState[K]>(S[key])
+  const [get, set] = createSignal<AppState[K]>(freezeShallow(S[key]))
   Object.defineProperty(S, key, {
     get,
-    set: (v: AppState[K]) => set(() => v),
+    set: (v: AppState[K]) => set(() => freezeShallow(v)),
     enumerable: true,
     configurable: true
   })

@@ -4,6 +4,7 @@ import { app } from './bus'
 import { IS_EXT, MOCK_TABS } from './env'
 import { focusTab } from './graph-tab'
 import { t } from './i18n'
+import { badgeView, effectiveWinFilter as pickWinFilter, winChipView } from './lib/badge-label'
 import { saveStore } from './lib/storage'
 import { matchTabsToBookmarks, summarizeWindows } from './lib/tab-match'
 import { short } from './lib/utils'
@@ -19,9 +20,7 @@ const [badgeWarn, setBadgeWarn] = createSignal<string | null>(null)
 /* --- filtro por ventana (chip ⊞) --- */
 
 export function effectiveWinFilter(): number | null {
-  if (S.winFilter === 'all') return null
-  if (S.winFilter === 'current') return S.currentWinId
-  return S.winList.some(w => w.id === S.winFilter) ? S.winFilter : null
+  return pickWinFilter(S.winFilter, S.currentWinId, S.winList)
 }
 
 async function setWinFilter(v: WinFilter): Promise<void> {
@@ -65,43 +64,27 @@ export function sessionKey(): string {
    tiene que acordarse de invocar un updateBadge tras cada escritura. */
 
 function renderBadge(): void {
-  const warn = badgeWarn()
-  tabcountEl.classList.toggle('warn', warn !== null)
-  if (warn !== null) {
-    tabcountEl.hidden = false
-    tabcountEl.textContent = warn
-    tabcountEl.classList.remove('active')
-    return
-  }
-  // antes del primer escaneo no hay nada que contar
-  if (!S.lastOpenKey && !S.openTabs.size && !S.ghostTabs.length) {
-    tabcountEl.hidden = true
-    return
-  }
-  const matched = [...S.openTabs.values()].reduce((s, l) => s + l.length, 0)
-  const loose = S.ghostTabs.length
-    ? S.ghostTabs.length === 1
-      ? t('badgeLooseOne')
-      : t('badgeLoose', S.ghostTabs.length)
-    : ''
-  tabcountEl.hidden = false
-  tabcountEl.textContent = S.onlyOpen
-    ? t('badgeOnlyOpen', matched)
-    : `${matched === 1 ? t('badgeOpenOne') : t('badgeOpen', matched)}${loose}`
-  tabcountEl.classList.toggle('active', S.onlyOpen)
+  const view = badgeView(
+    {
+      warn: badgeWarn(),
+      scanned: !!S.lastOpenKey,
+      matched: [...S.openTabs.values()].reduce((sum, l) => sum + l.length, 0),
+      loose: S.ghostTabs.length,
+      onlyOpen: S.onlyOpen
+    },
+    t
+  )
+  tabcountEl.hidden = view.hidden
+  tabcountEl.textContent = view.text
+  tabcountEl.classList.toggle('warn', view.warn === true)
+  tabcountEl.classList.toggle('active', view.active)
 }
 
 function renderWinChip(): void {
-  winchipEl.hidden = S.winList.length < 2
-  const wf = effectiveWinFilter()
-  let text = t('winAll')
-  if (S.winFilter === 'current') text = t('winCurrent')
-  else if (wf !== null) {
-    const i = S.winList.findIndex(w => w.id === wf)
-    text = t('winNumbered', i + 1)
-  }
-  winchipEl.textContent = text
-  winchipEl.classList.toggle('active', S.winFilter !== 'all')
+  const view = winChipView(S.winFilter, S.currentWinId, S.winList, t)
+  winchipEl.hidden = view.hidden
+  winchipEl.textContent = view.text
+  winchipEl.classList.toggle('active', view.active)
 }
 
 export function clearBadgeWarn(): void {

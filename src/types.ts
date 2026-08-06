@@ -120,8 +120,8 @@ export type WinFilter = 'all' | 'current' | number
  * condicionales `viewMode === '...'` por todo el código.
  */
 export interface ViewStrategy {
-  /** Construye nodos, links y clusters a partir del árbol de marcadores. */
-  build(tree: RawBookmarkNode[]): void
+  /** Construye nodos, links y clusters; false = la vista no pudo construirse. */
+  build(tree: RawBookmarkNode[]): boolean | Promise<boolean>
   /** Maneja el soltado de un nodo sobre un destino. */
   handleDrop(subject: GraphNode, target: GraphNode): void
   /** ¿Es `n` un destino válido de drop en esta vista? */

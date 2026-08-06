@@ -8,7 +8,7 @@ import { applyFolderPresentation } from './graph/presentation'
 import { simulation, startSimulation } from './graph/simulation'
 import { maybeReleaseNewTab } from './graph-tab'
 import { computeHistory } from './history'
-import { buildHistoryGraph, invalidateHistoryGraph } from './history-view'
+import { invalidateHistoryGraph } from './history-view'
 import { localizeDom, t } from './i18n'
 import { initCanvasInteractions, resetZoom, zoomToNodes } from './interactions'
 import { computeResizedTransform } from './lib/viewport-resize'
@@ -71,12 +71,10 @@ function placeNodes(prevPos: PrevPos): void {
   }
 }
 
-/** Topología según la vista; false = el historial no pudo construirse. */
+/** Topología según la vista; false = no pudo construirse (p. ej. historial sin datos). */
 async function buildGraphForView(): Promise<boolean> {
   S.lastTree = await loadTree()
-  if (S.viewMode === 'history') return buildHistoryGraph()
-  S.strategy.build(S.lastTree)
-  return true
+  return S.strategy.build(S.lastTree)
 }
 
 /** Capas sobre la topología: pestañas abiertas, calor, fantasmas, presentación. */

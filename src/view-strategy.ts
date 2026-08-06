@@ -7,8 +7,10 @@ import { S } from './state'
 import { setTags, tagsOf } from './tags'
 import type { MenuItem, ViewMode, ViewStrategy } from './types'
 
-/* La leyenda del historial se carga en diferido: importarla estáticamente
-   cerraría el ciclo view-strategy → history-view → state → view-strategy. */
+/* La leyenda y el build del historial van en diferido a propósito, aunque ya
+   no haya ciclo que esquivar: mantienen view-strategy importable sin DOM (los
+   specs lo cargan en Node y ui/legend e history-view arrastran ui/dom). En el
+   bundle IIFE esbuild los inline-a, así que en el navegador no difieren nada. */
 const HistoryLegend = lazy(() => import('./ui/legend'))
 
 /* --- helpers compartidos --- */
@@ -27,7 +29,10 @@ function noop(): void {
 /* ========================================================================== */
 
 const foldersStrategy: ViewStrategy = {
-  build: buildGraphFolders,
+  build: tree => {
+    buildGraphFolders(tree)
+    return true
+  },
   supportsGhosts: true,
   supportsPresentation: true,
   supportsHeat: true,
@@ -74,7 +79,10 @@ const foldersStrategy: ViewStrategy = {
 /* ========================================================================== */
 
 const tagsStrategy: ViewStrategy = {
-  build: buildGraphTags,
+  build: tree => {
+    buildGraphTags(tree)
+    return true
+  },
   supportsGhosts: true,
   supportsPresentation: false,
   supportsHeat: true,
@@ -142,7 +150,10 @@ const tagsStrategy: ViewStrategy = {
 /* ========================================================================== */
 
 const domainsStrategy: ViewStrategy = {
-  build: buildGraphDomains,
+  build: tree => {
+    buildGraphDomains(tree)
+    return true
+  },
   supportsGhosts: true,
   supportsPresentation: false,
   supportsHeat: true,
@@ -166,7 +177,7 @@ const domainsStrategy: ViewStrategy = {
 /* ========================================================================== */
 
 const historyStrategy: ViewStrategy = {
-  build: noop,
+  build: async () => (await import('./history-view')).buildHistoryGraph(),
   supportsGhosts: false,
   supportsPresentation: false,
   supportsHeat: false,

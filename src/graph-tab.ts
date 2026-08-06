@@ -1,4 +1,5 @@
 import { IS_EXT } from './env'
+import { isGraphTabUrl } from './lib/graph-url'
 import {
   type AppSettings,
   NATIVE_NEWTAB_URL,
@@ -16,18 +17,12 @@ export async function focusTab(tabId: number, windowId?: number): Promise<void> 
 /**
  * Ir al grafo desde fuera de él (botón de la barra, popup): enfocar la pestaña
  * que ya lo muestra o abrir una nueva.
- *
- * Chrome reporta las pestañas capturadas por `chrome_url_overrides` como
- * chrome://newtab/, no con la URL de la extensión; solo cuentan como grafo si
- * la override sigue activa.
  */
 export async function focusOrOpenGraph(settings: AppSettings): Promise<void> {
   const base = chrome.runtime.getURL('newtab.html')
-  const isGraph = (u: string): boolean =>
-    u.startsWith(base) || (settings.openMode === 'newtab' && u.startsWith('chrome://newtab'))
-
+  const takeover = settings.openMode === 'newtab'
   const tabs = await chrome.tabs.query({})
-  const graph = tabs.find(tb => isGraph(tb.url ?? tb.pendingUrl ?? ''))
+  const graph = tabs.find(tb => isGraphTabUrl(tb.url ?? tb.pendingUrl ?? '', base, takeover))
   if (graph?.id !== undefined) {
     await focusTab(graph.id, graph.windowId)
     return

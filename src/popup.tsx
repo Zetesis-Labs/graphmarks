@@ -8,6 +8,7 @@ import { suggestFolder } from './lib/folder-suggest'
 import { type AppSettings, normalizeSettings, SETTINGS_DEFAULTS } from './lib/settings-shape'
 import { loadStore } from './lib/storage'
 import { normTags } from './lib/tag-utils'
+import { pickTargetTab } from './lib/target-tab'
 import { S } from './state'
 import { allTags, loadTags, tagsOf, setTags as writeTags } from './tags'
 import type { FolderOption, RawBookmarkNode } from './types'
@@ -25,19 +26,11 @@ async function openGraph(): Promise<void> {
   window.close()
 }
 
-/**
- * Pestaña a guardar. En el popup anclado basta la activa de la ventana actual;
- * cuando se abre como ventana propia (respaldo sin `openPopup`), esa ventana es
- * la nuestra y hay que mirar fuera.
- */
 async function resolveTargetTab(): Promise<chrome.tabs.Tab | undefined> {
-  const own = chrome.runtime.getURL('')
-  const isOwn = (tb: chrome.tabs.Tab): boolean => (tb.url ?? '').startsWith(own)
   const [current] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (current && !isOwn(current)) return current
-  // sin API de orden de foco, la primera candidata es la mejor aproximación
+  // sin API de orden de foco, la primera activa ajena es la mejor aproximación
   const actives = await chrome.tabs.query({ active: true, windowType: 'normal' })
-  return actives.find(tb => !isOwn(tb))
+  return pickTargetTab(current, actives, chrome.runtime.getURL(''))
 }
 
 interface CaptureData {
@@ -89,6 +82,7 @@ function CaptureForm(props: { data: CaptureData }): JSX.Element {
   const [folderId, setFolderId] = createSignal(props.data.folderId)
   const [tagText, setTagText] = createSignal(props.data.tags.join(', '))
   const [saved, setSaved] = createSignal(false)
+  const [saveError, setSaveError] = createSignal('')
   let tagsInput: HTMLInputElement | undefined
 
   const toggleTag = (tag: string): void => {
@@ -103,13 +97,20 @@ function CaptureForm(props: { data: CaptureData }): JSX.Element {
       const { existing, url } = props.data
       const parentId = folderId()
       const name = title().trim() || url
-      if (existing) {
-        if (existing.parentId !== parentId) await chrome.bookmarks.move(existing.id, { parentId })
-        if (existing.title !== name) await chrome.bookmarks.update(existing.id, { title: name })
-      } else {
-        await chrome.bookmarks.create({ parentId, title: name, url })
+      try {
+        if (existing) {
+          if (existing.parentId !== parentId) await chrome.bookmarks.move(existing.id, { parentId })
+          if (existing.title !== name) await chrome.bookmarks.update(existing.id, { title: name })
+        } else {
+          await chrome.bookmarks.create({ parentId, title: name, url })
+        }
+        await writeTags(url, normTags(tagText()))
+      } catch (e) {
+        // sin toast en el popup: el error se muestra en el propio formulario
+        setSaveError(t('popupSaveError', (e as Error).message ?? String(e)))
+        return
       }
-      await writeTags(url, normTags(tagText()))
+      setSaveError('')
       setSaved(true)
       setTimeout(() => window.close(), CLOSE_DELAY_MS)
     })()
@@ -117,8 +118,13 @@ function CaptureForm(props: { data: CaptureData }): JSX.Element {
 
   const remove = (): void => {
     void (async () => {
-      const id = props.data.existing?.id
-      if (id) await chrome.bookmarks.remove(id)
+      try {
+        const id = props.data.existing?.id
+        if (id) await chrome.bookmarks.remove(id)
+      } catch (e) {
+        setSaveError(t('popupSaveError', (e as Error).message ?? String(e)))
+        return
+      }
       window.close()
     })()
   }
@@ -176,6 +182,9 @@ function CaptureForm(props: { data: CaptureData }): JSX.Element {
           </For>
         </div>
 
+        <Show when={saveError()}>
+          <div id="saveerror">{saveError()}</div>
+        </Show>
         <div id="statusrow">
           <Show when={props.data.existing}>
             <span id="savedmsg">{t('popupAlreadySaved', props.data.existingFolder)}</span>
