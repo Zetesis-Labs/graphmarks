@@ -2,6 +2,7 @@ import { createEffect, createRoot, createSignal } from 'solid-js'
 import { activePort } from './browser-port'
 import { app } from './bus'
 import { IS_EXT, MOCK_TABS } from './env'
+import { focusTab } from './graph-tab'
 import { t } from './i18n'
 import { saveStore } from './lib/storage'
 import { matchTabsToBookmarks, summarizeWindows } from './lib/tab-match'
@@ -141,8 +142,7 @@ export async function activateTab(tab: TabInfo): Promise<void> {
     return
   }
   try {
-    await chrome.tabs.update(tab.id, { active: true })
-    await chrome.windows.update(tab.windowId, { focused: true })
+    await focusTab(tab.id, tab.windowId)
     const self = await chrome.tabs.getCurrent()
     if (self?.id !== undefined && self.id !== tab.id) void chrome.tabs.remove(self.id)
   } catch (e) {

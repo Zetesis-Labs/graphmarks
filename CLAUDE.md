@@ -174,6 +174,7 @@ pnpm typecheck    # tsc --noEmit
 pnpm lint         # biome check
 pnpm lint:fix
 pnpm test         # vitest (solo lib/ puro)
+pnpm smoke:ui     # sonda CDP sobre la preview: modales, paleta, chips reactivos
 pnpm verify       # lint + typecheck + test + build (lo mismo que CI)
 ```
 

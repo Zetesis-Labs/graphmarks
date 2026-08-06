@@ -84,11 +84,26 @@ export interface AppState {
   settings: AppSettings
 }
 
-import { strategies } from './view-strategy'
+/**
+ * Estrategia inerte hasta que `loadPersistedState` carga la real (siempre
+ * antes de cualquier render). No se importa `view-strategy` estáticamente a
+ * propósito: arrastraría el grafo entero (build, d3, tags) a todo bundle que
+ * toque `S` — el popup pesaba un tercio más solo por esta línea.
+ */
+const bootStrategy: ViewStrategy = {
+  build: () => {},
+  handleDrop: () => {},
+  isDropTarget: () => false,
+  supportsGhosts: false,
+  supportsPresentation: false,
+  supportsHeat: false,
+  hostLinks: false,
+  emptyMessage: () => ({ title: '', body: '' })
+}
 
 export const S: AppState = {
   viewMode: 'folders',
-  strategy: strategies.folders,
+  strategy: bootStrategy,
   tagsMap: {},
   nodes: [],
   links: [],

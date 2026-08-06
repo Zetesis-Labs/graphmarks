@@ -3,14 +3,7 @@ import { Dynamic } from 'solid-js/web'
 import { app } from './bus'
 import { HAS_SYNC, IS_EXT, IS_FIREFOX } from './env'
 import { type MessageKey, t } from './i18n'
-import {
-  type ActionMode,
-  type AppSettings,
-  NATIVE_NEWTAB_URL,
-  OPEN_SOURCE_PARAM,
-  type OpenMode,
-  shouldReleaseNewTab
-} from './lib/settings-shape'
+import type { ActionMode, AppSettings, OpenMode } from './lib/settings-shape'
 import { saveStore } from './lib/storage'
 import { loadSessions } from './sessions'
 import { S } from './state'
@@ -22,25 +15,6 @@ async function saveSettings(patch: Partial<AppSettings>): Promise<void> {
   // S.settings es reactivo (state.ts): el panel se actualiza solo
   S.settings = { ...S.settings, ...patch }
   await saveStore('settings', S.settings)
-}
-
-/**
- * Con «solo botón», la pestaña nueva se devuelve al NTP nativo navegando a él.
- * En Firefox esa URL es privilegiada y la navegación falla: se degrada
- * mostrando el grafo, que siempre es mejor que una pestaña muerta.
- */
-export async function maybeReleaseNewTab(params: URLSearchParams): Promise<boolean> {
-  if (!IS_EXT || !chrome.tabs) return false
-  if (!shouldReleaseNewTab(S.settings, params.get(OPEN_SOURCE_PARAM))) return false
-  try {
-    const own = await chrome.tabs.getCurrent()
-    if (own?.id === undefined) return false
-    await chrome.tabs.update(own.id, { url: NATIVE_NEWTAB_URL })
-    return true
-  } catch {
-    // degradación deliberada: sin NTP alcanzable, se sigue con el arranque normal
-    return false
-  }
 }
 
 /* --- opciones --- */

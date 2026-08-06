@@ -6,6 +6,7 @@ import { IS_EXT } from './env'
 import { addGhostNodes, pruneToOpen, rebuildNeighbors } from './graph/build'
 import { applyFolderPresentation } from './graph/presentation'
 import { simulation, startSimulation } from './graph/simulation'
+import { maybeReleaseNewTab } from './graph-tab'
 import { computeHistory } from './history'
 import { buildHistoryGraph, invalidateHistoryGraph } from './history-view'
 import { localizeDom, t } from './i18n'
@@ -16,7 +17,7 @@ import { initPanels, refreshPanels } from './panels'
 import { invalidateGraphGeometry, requestDraw } from './render'
 import { applySearch, clearSearch, initSearch } from './search'
 import { initSessionsUi, loadSessions } from './sessions'
-import { initSettingsUi, maybeReleaseNewTab } from './settings'
+import { initSettingsUi } from './settings'
 import { loadPersistedState, readColors, S, syncActive } from './state'
 import {
   checkPermissions,
@@ -70,18 +71,16 @@ function placeNodes(prevPos: PrevPos): void {
   }
 }
 
-/**
- * Reconstruye el grafo conservando posiciones: editar no debe provocar un
- * re-layout brusco. Los nodos nuevos nacen junto a su carpeta.
- */
-export async function rebuild(fit: boolean): Promise<void> {
-  const prevPos = new Map(S.nodes.map(n => [n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy }]))
+/** Topología según la vista; false = el historial no pudo construirse. */
+async function buildGraphForView(): Promise<boolean> {
   S.lastTree = await loadTree()
-  if (S.viewMode === 'history') {
-    if (!(await buildHistoryGraph())) return
-  } else S.strategy.build(S.lastTree)
-  S.allBms = S.nodes.filter(n => n.type === 'bm')
+  if (S.viewMode === 'history') return buildHistoryGraph()
+  S.strategy.build(S.lastTree)
+  return true
+}
 
+/** Capas sobre la topología: pestañas abiertas, calor, fantasmas, presentación. */
+async function annotateGraph(): Promise<void> {
   clearBadgeWarn()
   const res = await computeOpenTabs(S.allBms)
   S.openTabs = res.map
@@ -92,20 +91,21 @@ export async function rebuild(fit: boolean): Promise<void> {
     await computeHistory()
     for (const n of S.allBms) n.heat = S.heatByUrl.get(n.url ?? '') ?? 0.35
   }
-  if (S.strategy.supportsGhosts) {
-    addGhostNodes()
-  }
+  if (S.strategy.supportsGhosts) addGhostNodes()
   rebuildNeighbors()
   applyFolderPresentation()
+}
 
-  if (S.onlyOpen) {
-    pruneToOpen()
-    S.clusters = S.clusters.filter(c => S.byId.has(c.id))
-  }
+function pruneIfOnlyOpen(): void {
+  if (!S.onlyOpen) return
+  pruneToOpen()
+  S.clusters = S.clusters.filter(c => S.byId.has(c.id))
+}
 
+/** Colocar, avisar a la UI y arrancar la física; con `fit`, encuadrar todo. */
+function settleLayout(fit: boolean, prevPos: PrevPos): void {
   placeNodes(prevPos)
   invalidateGraphGeometry()
-
   refreshPanels()
   startSimulation(fit ? 1 : 0.5)
   if (fit) {
@@ -116,6 +116,19 @@ export async function rebuild(fit: boolean): Promise<void> {
   }
   if (S.searchQuery) applySearch(S.searchQuery)
   requestDraw()
+}
+
+/**
+ * Reconstruye el grafo conservando posiciones: editar no debe provocar un
+ * re-layout brusco. Los nodos nuevos nacen junto a su carpeta.
+ */
+export async function rebuild(fit: boolean): Promise<void> {
+  const prevPos: PrevPos = new Map(S.nodes.map(n => [n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy }]))
+  if (!(await buildGraphForView())) return
+  S.allBms = S.nodes.filter(n => n.type === 'bm')
+  await annotateGraph()
+  pruneIfOnlyOpen()
+  settleLayout(fit, prevPos)
 }
 
 let rebuildTimer: ReturnType<typeof setTimeout> | undefined
@@ -180,7 +193,7 @@ function collectUrls(items: RawBookmarkNode[], acc: Set<string>): void {
 async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search)
   await loadPersistedState(params)
-  if (await maybeReleaseNewTab(params)) return
+  if (await maybeReleaseNewTab(S.settings, params)) return
   await resolveCurrentWindow()
   await loadSessions()
   await loadCustomizations()
