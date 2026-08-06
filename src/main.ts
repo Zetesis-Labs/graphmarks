@@ -15,7 +15,8 @@ import { buildLegend, buildList, buildViews, initPanels } from './panels'
 import { invalidateGraphGeometry, requestDraw } from './render'
 import { applySearch, clearSearch, initSearch } from './search'
 import { initSessionsUi, loadSessions } from './sessions'
-import { loadPersistedState, readColors, S } from './state'
+import { initSettingsUi, maybeReleaseNewTab } from './settings'
+import { loadPersistedState, readColors, S, syncActive } from './state'
 import {
   checkPermissions,
   clearBadgeWarn,
@@ -152,6 +153,7 @@ function installChromeListeners(): void {
   chrome.bookmarks.onChanged.addListener(rebuildSoon)
   chrome.bookmarks.onMoved.addListener(rebuildSoon)
   chrome.storage?.onChanged?.addListener((ch, area) => {
+    if (area === 'sync' && !syncActive()) return
     if (area === 'sync' && Object.keys(ch).some(k => k.startsWith('tags_'))) {
       void (async () => {
         S.tagsMap = await loadTags()
@@ -189,7 +191,9 @@ function collectUrls(items: RawBookmarkNode[], acc: Set<string>): void {
 }
 
 async function boot(): Promise<void> {
-  await loadPersistedState(new URLSearchParams(location.search))
+  const params = new URLSearchParams(location.search)
+  await loadPersistedState(params)
+  if (await maybeReleaseNewTab(params)) return
   await resolveCurrentWindow()
   await loadSessions()
   await loadCustomizations()
@@ -199,6 +203,7 @@ async function boot(): Promise<void> {
   initPanels()
   initTabsUi()
   initSessionsUi()
+  initSettingsUi()
   initSearch()
   initCanvasInteractions()
   installMenuDismiss()

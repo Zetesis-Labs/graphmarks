@@ -43,6 +43,7 @@ function buildTagCloud(f: DialogField, inp: HTMLInputElement | HTMLSelectElement
 }
 
 export function openDialog(spec: DialogSpec, onSubmit: SubmitHandler): void {
+  dlg.className = ''
   dlg.replaceChildren()
   const h = document.createElement('h3')
   h.textContent = spec.title

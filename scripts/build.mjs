@@ -50,7 +50,8 @@ const common = {
 
 const jobs = [
   { ...common, entryPoints: ['src/main.ts'], outfile: 'dist/newtab.js' },
-  { ...common, entryPoints: ['src/background.ts'], outfile: 'dist/background.js' }
+  { ...common, entryPoints: ['src/background.ts'], outfile: 'dist/background.js' },
+  { ...common, entryPoints: ['src/popup.ts'], outfile: 'dist/popup.js' }
 ]
 
 function firefoxManifest(m) {
@@ -74,13 +75,16 @@ function firefoxManifest(m) {
 const FIREFOX_FILES = [
   'newtab.html',
   'newtab.css',
+  'popup.html',
+  'popup.css',
   'mock-data.js',
   'seed-tags.js',
   'LICENSE',
   'icons',
   '_locales',
   'dist/newtab.js',
-  'dist/background.js'
+  'dist/background.js',
+  'dist/popup.js'
 ]
 
 async function stageFirefox() {

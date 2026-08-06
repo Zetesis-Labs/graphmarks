@@ -1,5 +1,7 @@
 import { type ZoomTransform, zoomIdentity } from 'd3-zoom'
 import { SERIES_VARS } from './constants'
+import { HAS_SYNC } from './env'
+import { type AppSettings, normalizeSettings, SETTINGS_DEFAULTS } from './lib/settings-shape'
 import { loadStore, saveStore } from './lib/storage'
 import type {
   Cluster,
@@ -78,6 +80,7 @@ export interface AppState {
   historyUnsavedOnly: boolean
   /** Guía en marcha: el grafo y las pestañas salen de los datos de muestra. */
   demo: boolean
+  settings: AppSettings
 }
 
 import { strategies } from './view-strategy'
@@ -123,7 +126,8 @@ export const S: AppState = {
   historyGrouping: 'domain',
   historyMuted: new Set(),
   historyUnsavedOnly: false,
-  demo: false
+  demo: false,
+  settings: { ...SETTINGS_DEFAULTS }
 }
 
 export const COLORS: Colors = {
@@ -152,6 +156,11 @@ export function readColors(): void {
   COLORS.series = SERIES_VARS.map(v)
 }
 
+/** ¿Debe usarse chrome.storage.sync ahora mismo? API presente y ajuste activo. */
+export function syncActive(): boolean {
+  return HAS_SYNC && S.settings.syncEnabled
+}
+
 /** Pins (layout manual) de la vista activa. */
 export function pinsOfView(): PinMap {
   S.pinned[S.viewMode] ??= {}
@@ -178,4 +187,5 @@ export async function loadPersistedState(params: URLSearchParams): Promise<void>
   S.historyGrouping = await loadStore<HistoryGrouping>('historyGrouping', 'domain')
   S.historyMuted = new Set(await loadStore<string[]>('historyMuted', []))
   S.savedSessions = await loadStore<SavedSession[]>('sessions', [])
+  S.settings = normalizeSettings(await loadStore<AppSettings>('settings', SETTINGS_DEFAULTS))
 }

@@ -3,12 +3,14 @@ import { app } from './bus'
 import { promptNewBookmark, promptNewFolder } from './dialogs'
 import { members } from './graph/build'
 import { nodeColor } from './graph/style'
+import { openHygieneDialog } from './hygiene'
 import { t } from './i18n'
 import { unpinAll, zoom, zoomToNodes } from './interactions'
 import { type CommandItem, matchCommands, registerCommands } from './lib/command-palette'
 import { matchesQuery, type SearchCandidate, scoreCandidate } from './lib/search-score'
 import { saveStore } from './lib/storage'
 import { buildViews } from './panels'
+import { openSettingsPanel } from './settings'
 import { S } from './state'
 import { activateTab, toggleOnlyOpen } from './tabs'
 import { exportData, importData } from './transfer'
@@ -125,6 +127,20 @@ export function setupDefaultCommands(): void {
       icon: '💡',
       keywords: ['guia', 'tour', 'ayuda', 'guide'],
       action: () => app.startGuide()
+    },
+    {
+      id: 'cmd-settings',
+      titleKey: 'cmdSettings',
+      icon: '⚙',
+      keywords: ['ajustes', 'settings', 'preferencias', 'configuracion'],
+      action: () => openSettingsPanel()
+    },
+    {
+      id: 'cmd-hygiene',
+      titleKey: 'cmdHygiene',
+      icon: '🧹',
+      keywords: ['higiene', 'duplicados', 'limpiar', 'hygiene', 'duplicates', 'cleanup'],
+      action: () => openHygieneDialog()
     }
   ])
 }

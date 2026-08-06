@@ -5,6 +5,8 @@ export const HAS_STORAGE = IS_EXT && !!chrome.storage?.local
 export const HAS_SYNC = IS_EXT && !!chrome.storage?.sync
 /** El endpoint /_favicon/ es exclusivo de Chrome; en Firefox el permiso ni existe. */
 export const HAS_FAVICON_API = IS_EXT && !!chrome.runtime.getManifest?.().permissions?.includes('favicon')
+/** Firefox sirve las páginas de extensión bajo moz-extension://. */
+export const IS_FIREFOX = IS_EXT && (chrome.runtime.getURL?.('') ?? '').startsWith('moz-extension://')
 
 /** Pestañas simuladas para la vista previa fuera de Chrome (mutable: closeTab). */
 export const MOCK_TABS = [

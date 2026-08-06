@@ -44,6 +44,7 @@ export function backgroundMenu(): MenuItem[] {
     { sep: true },
     { label: t('menuExport'), action: () => exportData() },
     { label: t('menuImport'), action: () => importData() },
+    { label: t('menuHygiene'), action: () => void import('../hygiene').then(m => m.openHygieneDialog()) },
     { sep: true },
     { label: t('menuShowGuide'), action: () => app.startGuide() }
   ]
