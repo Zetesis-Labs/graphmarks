@@ -4,6 +4,7 @@ import { members } from './graph/build'
 import { findAt, findHit } from './graph/hit'
 import { radius } from './graph/style'
 import { drag } from './interactions/drag-drop'
+import { handleKeyboardNav, setKeyboardFocus } from './interactions/keyboard'
 import { backgroundMenu, nodeMenu } from './interactions/menus'
 import { pinItem, unpinAll, unpinNode } from './interactions/pins'
 import { closeSubgraph, expandCollapsed, openSubgraph } from './interactions/subgraph'
@@ -23,6 +24,7 @@ export {
   pinItem,
   radius,
   resetZoom,
+  setKeyboardFocus,
   unpinAll,
   unpinNode,
   zoom,
@@ -111,6 +113,7 @@ export function initCanvasInteractions(): void {
   })
 
   document.addEventListener('keydown', ev => {
+    if (handleKeyboardNav(ev)) return
     if (ev.key !== 'Escape' || !S.activeSubgraph || !menuEl.hidden || dlg.open) return
     closeSubgraph()
   })

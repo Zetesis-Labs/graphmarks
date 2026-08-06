@@ -9,6 +9,7 @@ import { computeHistory } from './history'
 import { buildHistoryGraph, invalidateHistoryGraph } from './history-view'
 import { localizeDom, t } from './i18n'
 import { initCanvasInteractions, resetZoom, zoomToNodes } from './interactions'
+import { computeResizedTransform } from './lib/viewport-resize'
 import { maybeStartOnboarding, startOnboarding } from './onboarding'
 import { buildLegend, buildList, buildViews, initPanels } from './panels'
 import { invalidateGraphGeometry, requestDraw } from './render'
@@ -205,7 +206,28 @@ async function boot(): Promise<void> {
     readColors()
     requestDraw()
   })
-  new ResizeObserver(() => requestDraw()).observe(canvas)
+  let lastW = canvas.clientWidth
+  let lastH = canvas.clientHeight
+
+  new ResizeObserver(() => {
+    const newW = canvas.clientWidth
+    const newH = canvas.clientHeight
+    if (lastW > 0 && lastH > 0 && (newW !== lastW || newH !== lastH)) {
+      const focus = S.keyboardFocusNode ?? S.searchFocusNode
+      const focusPoint = focus && focus.x !== undefined && focus.y !== undefined ? { x: focus.x, y: focus.y } : null
+      S.tf = computeResizedTransform({
+        oldW: lastW,
+        oldH: lastH,
+        newW,
+        newH,
+        tf: S.tf,
+        focusPoint
+      })
+    }
+    lastW = newW
+    lastH = newH
+    requestDraw()
+  }).observe(canvas)
   installChromeListeners()
 
   buildViews()

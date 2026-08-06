@@ -48,6 +48,7 @@ export interface AppState {
   focusSet: Set<string> | null
   searchQuery: string
   searchFocusNode: GraphNode | null
+  keyboardFocusNode: GraphNode | null
   dropTarget: GraphNode | null
   favicons: Map<string, FaviconRecord>
   openTabs: Map<string, TabInfo[]>
@@ -98,6 +99,7 @@ export const S: AppState = {
   focusSet: null,
   searchQuery: '',
   searchFocusNode: null,
+  keyboardFocusNode: null,
   dropTarget: null,
   favicons: new Map(),
   openTabs: new Map(),
