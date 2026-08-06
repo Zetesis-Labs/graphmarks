@@ -18,12 +18,9 @@ import { loadTags } from './tags'
 import { settingsBtn } from './ui/dom'
 import { closeModal, renderModal } from './ui/modal'
 
-/** Espejo reactivo de S.settings: el panel se actualiza solo al cambiarlos. */
-const [settings, setSettings] = createSignal<AppSettings>(S.settings)
-
 async function saveSettings(patch: Partial<AppSettings>): Promise<void> {
+  // S.settings es reactivo (state.ts): el panel se actualiza solo
   S.settings = { ...S.settings, ...patch }
-  setSettings(S.settings)
   await saveStore('settings', S.settings)
 }
 
@@ -97,7 +94,7 @@ function OpenModeSection(): JSX.Element {
         <Radio
           group="openMode"
           option={option}
-          current={settings().openMode}
+          current={S.settings.openMode}
           onPick={value => void saveSettings({ openMode: value })}
         />
       )}
@@ -112,7 +109,7 @@ function ActionModeSection(): JSX.Element {
         <Radio
           group="actionMode"
           option={option}
-          current={settings().actionMode}
+          current={S.settings.actionMode}
           onPick={value => void saveSettings({ actionMode: value })}
         />
       )}
@@ -193,7 +190,7 @@ function SyncSection(): JSX.Element {
     <label class="opt">
       <input
         type="checkbox"
-        checked={settings().syncEnabled}
+        checked={S.settings.syncEnabled}
         disabled={unavailable}
         onChange={e => void applySyncToggle(e.currentTarget.checked)}
       />
@@ -286,7 +283,6 @@ function SettingsPanel(): JSX.Element {
 
 /** Panel de ajustes: los cambios se aplican y persisten al instante. */
 export function openSettingsPanel(): void {
-  setSettings(S.settings)
   renderModal(() => <SettingsPanel />, 'settings')
 }
 

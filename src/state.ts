@@ -157,15 +157,62 @@ export function readColors(): void {
   COLORS.series = SERIES_VARS.map(v)
 }
 
+/* --- reactividad de nivel aplicación ---
+
+   `S` tiene dos niveles, y la lista de abajo es la frontera:
+
+   - Campos CALIENTES (nodes, links, tf, hover…): planos, sin reactividad.
+     d3-force muta node.x/node.y en cada tick y el pintado recorre S.nodes a
+     60 fps; un store reactivo cobraría peaje de proxy en el camino más
+     caliente para dar una finura que el canvas no usa — se repinta en bucle.
+
+   - Campos de APLICACIÓN (los de REACTIVE_FIELDS): respaldados por señal vía
+     defineProperty. La sintaxis no cambia (`S.viewMode = 'tags'` dispara la
+     reactividad sola), y leerlos desde el canvas es una llamada a función.
+
+   Regla de oro: un campo reactivo se REEMPLAZA, no se muta. `S.tagsMap[u]=x`
+   o `S.historyMuted.add(d)` no disparan nada; hay que asignar un objeto/Set
+   nuevo. Los contenedores que sí se mutan en sitio (expandedFolders, pinned,
+   folderPrefs, favicons…) quedan fuera de la lista a propósito. */
+
+const REACTIVE_FIELDS = [
+  'viewMode',
+  'strategy',
+  'settings',
+  'onlyOpen',
+  'showGhosts',
+  'winFilter',
+  'searchQuery',
+  'tagsMap',
+  'savedSessions',
+  'openTabs',
+  'ghostTabs',
+  'winList',
+  'currentWinId',
+  'historyRange',
+  'historyGrouping',
+  'historyMuted',
+  'historyUnsavedOnly',
+  'activeSubgraph',
+  'demo'
+] as const satisfies readonly (keyof AppState)[]
+
+function reactiveField<K extends keyof AppState>(key: K): void {
+  const [get, set] = createSignal<AppState[K]>(S[key])
+  Object.defineProperty(S, key, {
+    get,
+    set: (v: AppState[K]) => set(() => v),
+    enumerable: true,
+    configurable: true
+  })
+}
+for (const key of REACTIVE_FIELDS) reactiveField(key)
+
 /**
- * Proyección reactiva de `S` para la UI: un contador que se incrementa cuando
- * el grafo cambia. Los componentes lo leen para declarar la dependencia y
- * luego consultan `S` libremente.
- *
- * Es deliberadamente esto y no un `createStore` sobre `S`: d3-force muta
- * `node.x`/`node.y` en cada tick y el pintado recorre `S.nodes` a 60 fps, así
- * que un proxy reactivo cobraría su peaje justo en el camino más caliente
- * para dar reactividad fina que el canvas no usa —se repinta en bucle—.
+ * Lo que la señal por campo no cubre: «el grafo se reconstruyó». Nodos,
+ * clusters y allBms son calientes, así que las lecturas derivadas de ellos
+ * declaran la dependencia llamando a graphVersion() y rebuild() la dispara
+ * vía refreshPanels().
  */
 const [graphVersion, setGraphVersion] = createSignal(0)
 

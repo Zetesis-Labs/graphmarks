@@ -1,3 +1,4 @@
+import { createEffect, createRoot, createSignal } from 'solid-js'
 import { activePort } from './browser-port'
 import { app } from './bus'
 import { IS_EXT, MOCK_TABS } from './env'
@@ -11,11 +12,8 @@ import { tabcountEl, winchipEl } from './ui/dom'
 import { showMenu } from './ui/menu'
 import { toast } from './ui/toast'
 
-function tabStatus(text: string, warn = false): void {
-  tabcountEl.hidden = !text
-  tabcountEl.textContent = text
-  tabcountEl.classList.toggle('warn', warn)
-}
+/** Aviso de plataforma (sin permiso, URLs ocultas); null = contador normal. */
+const [badgeWarn, setBadgeWarn] = createSignal<string | null>(null)
 
 /* --- filtro por ventana (chip ⊞) --- */
 
@@ -25,23 +23,9 @@ export function effectiveWinFilter(): number | null {
   return S.winList.some(w => w.id === S.winFilter) ? S.winFilter : null
 }
 
-export function updateWinChip(): void {
-  winchipEl.hidden = S.winList.length < 2
-  const wf = effectiveWinFilter()
-  let text = t('winAll')
-  if (S.winFilter === 'current') text = t('winCurrent')
-  else if (wf !== null) {
-    const i = S.winList.findIndex(w => w.id === wf)
-    text = t('winNumbered', i + 1)
-  }
-  winchipEl.textContent = text
-  winchipEl.classList.toggle('active', S.winFilter !== 'all')
-}
-
 async function setWinFilter(v: WinFilter): Promise<void> {
   S.winFilter = v
   await saveStore('winFilter', v === 'all' || v === 'current' ? v : 'all')
-  updateWinChip()
   await refreshTabs()
 }
 
@@ -55,12 +39,11 @@ interface OpenTabsResult {
 export async function computeOpenTabs(bms: GraphNode[]): Promise<OpenTabsResult> {
   const { tabs, warning } = await activePort().queryTabs()
   if (warning) {
-    tabStatus(warning === 'no-permission' ? t('badgeNoTabsPermission') : t('badgeHiddenUrls'), true)
+    setBadgeWarn(warning === 'no-permission' ? t('badgeNoTabsPermission') : t('badgeHiddenUrls'))
     return { map: new Map(), ghosts: [] }
   }
   // inventario de ventanas (para el chip ⊞) antes de filtrar
   S.winList = summarizeWindows(tabs)
-  updateWinChip()
   const wf = effectiveWinFilter()
   const scoped = wf !== null ? tabs.filter(t => t.windowId === wf) : tabs
   return matchTabsToBookmarks(scoped, bms)
@@ -77,22 +60,51 @@ export function sessionKey(): string {
     .join(',')}`
 }
 
-export function updateBadge(): void {
+/* Los chips se pintan solos: efectos sobre los campos reactivos de S. Nadie
+   tiene que acordarse de invocar un updateBadge tras cada escritura. */
+
+function renderBadge(): void {
+  const warn = badgeWarn()
+  tabcountEl.classList.toggle('warn', warn !== null)
+  if (warn !== null) {
+    tabcountEl.hidden = false
+    tabcountEl.textContent = warn
+    tabcountEl.classList.remove('active')
+    return
+  }
+  // antes del primer escaneo no hay nada que contar
+  if (!S.lastOpenKey && !S.openTabs.size && !S.ghostTabs.length) {
+    tabcountEl.hidden = true
+    return
+  }
   const matched = [...S.openTabs.values()].reduce((s, l) => s + l.length, 0)
-  if (tabcountEl.classList.contains('warn')) return
   const loose = S.ghostTabs.length
     ? S.ghostTabs.length === 1
       ? t('badgeLooseOne')
       : t('badgeLoose', S.ghostTabs.length)
     : ''
-  tabStatus(
-    S.onlyOpen ? t('badgeOnlyOpen', matched) : `${matched === 1 ? t('badgeOpenOne') : t('badgeOpen', matched)}${loose}`
-  )
+  tabcountEl.hidden = false
+  tabcountEl.textContent = S.onlyOpen
+    ? t('badgeOnlyOpen', matched)
+    : `${matched === 1 ? t('badgeOpenOne') : t('badgeOpen', matched)}${loose}`
   tabcountEl.classList.toggle('active', S.onlyOpen)
 }
 
+function renderWinChip(): void {
+  winchipEl.hidden = S.winList.length < 2
+  const wf = effectiveWinFilter()
+  let text = t('winAll')
+  if (S.winFilter === 'current') text = t('winCurrent')
+  else if (wf !== null) {
+    const i = S.winList.findIndex(w => w.id === wf)
+    text = t('winNumbered', i + 1)
+  }
+  winchipEl.textContent = text
+  winchipEl.classList.toggle('active', S.winFilter !== 'all')
+}
+
 export function clearBadgeWarn(): void {
-  tabcountEl.classList.remove('warn')
+  setBadgeWarn(null)
 }
 
 export async function refreshTabs(): Promise<void> {
@@ -100,7 +112,6 @@ export async function refreshTabs(): Promise<void> {
   const res = await computeOpenTabs(S.allBms)
   S.openTabs = res.map
   S.ghostTabs = res.ghosts
-  updateBadge()
   const key = sessionKey()
   const changed = key !== S.lastOpenKey
   S.lastOpenKey = key
@@ -192,6 +203,11 @@ export async function checkPermissions(): Promise<void> {
 /* --- UI: listeners de chips --- */
 
 export function initTabsUi(): void {
+  // raíz sin dispose: los chips viven lo que la página
+  createRoot(() => {
+    createEffect(renderBadge)
+    createEffect(renderWinChip)
+  })
   tabcountEl.addEventListener('click', () => void toggleOnlyOpen())
   winchipEl.addEventListener('click', ev => {
     ev.stopPropagation() // que el clic no llegue al cierre global del menú

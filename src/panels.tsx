@@ -41,10 +41,8 @@ function switchView(mode: ViewMode): void {
 
 function Views(): JSX.Element {
   const modes = Object.entries(VIEW_KEYS) as Array<[ViewMode, (typeof VIEW_KEYS)[ViewMode]]>
-  const activeMode = (): ViewMode => {
-    graphVersion()
-    return S.viewMode
-  }
+  // S.viewMode es reactivo: sin graphVersion
+  const activeMode = (): ViewMode => S.viewMode
   return (
     <For each={modes}>
       {([mode, key]) => (
@@ -57,14 +55,9 @@ function Views(): JSX.Element {
 }
 
 function Legend(): JSX.Element {
-  const inSubgraph = (): boolean => {
-    graphVersion()
-    return S.activeSubgraph !== null
-  }
-  const extras = (): ReturnType<NonNullable<typeof S.strategy.legendItems>> => {
-    graphVersion()
-    return S.strategy.legendItems?.() ?? []
-  }
+  // activeSubgraph y strategy son reactivos: sin graphVersion
+  const inSubgraph = (): boolean => S.activeSubgraph !== null
+  const extras = (): ReturnType<NonNullable<typeof S.strategy.legendItems>> => S.strategy.legendItems?.() ?? []
 
   return (
     <>

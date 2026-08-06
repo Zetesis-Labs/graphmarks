@@ -19,14 +19,9 @@ export default function HistoryLegend(): JSX.Element {
     graphVersion()
     return `◷ ${historyRangeLabel()} · ${S.allBms.length} ▾`
   }
-  const isCustom = (): boolean => {
-    graphVersion()
-    return S.historyRange.preset === 'custom'
-  }
-  const unsavedOnly = (): boolean => {
-    graphVersion()
-    return S.historyUnsavedOnly
-  }
+  // historyRange e historyUnsavedOnly son reactivos: sin graphVersion
+  const isCustom = (): boolean => S.historyRange.preset === 'custom'
+  const unsavedOnly = (): boolean => S.historyUnsavedOnly
 
   const openRangeMenu = (ev: MouseEvent): void => {
     ev.stopPropagation()

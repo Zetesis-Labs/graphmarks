@@ -1,7 +1,7 @@
 import { app } from './bus'
 import { t } from './i18n'
 import { saveStore } from './lib/storage'
-import { persistSessions, updateSessionsChip } from './sessions'
+import { persistSessions } from './sessions'
 import { S } from './state'
 import { persistTags } from './tags'
 import type { ExportPayload } from './types'
@@ -56,9 +56,8 @@ async function applyImport(data: ExportPayload): Promise<void> {
   }
   if (Array.isArray(data.sessions)) {
     const known = new Set(S.savedSessions.map(s => s.id))
-    S.savedSessions.push(...data.sessions.filter(s => !known.has(s.id)))
+    S.savedSessions = [...S.savedSessions, ...data.sessions.filter(s => !known.has(s.id))]
     await persistSessions()
-    updateSessionsChip()
   }
 }
 

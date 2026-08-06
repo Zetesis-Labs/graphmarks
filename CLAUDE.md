@@ -54,12 +54,26 @@ Cuatro cosas que conviene saber:
 - **El compilador de Solid es un plugin de Babel**, no lo hace esbuild. Por eso
   `scripts/build.mjs` aplica `solidPlugin` a los bundles con `.tsx` (newtab y
   popup); `background` no tiene UI y sigue siendo esbuild puro.
-- **`S` no es reactivo y no debe serlo.** d3-force muta `node.x`/`node.y` en
-  cada tick y el pintado recorre `S.nodes` a 60 fps: un `createStore` pondría
-  trampas de proxy en el camino más caliente para dar reactividad fina que el
-  canvas no usa. La UI se entera por **`graphVersion()`** (en `state.ts`), un
-  contador que `rebuild()` incrementa vía `refreshPanels()`. Un componente que
-  lea `S` debe llamar antes a `graphVersion()` para declarar la dependencia.
+- **`S` tiene dos niveles, y la lista `REACTIVE_FIELDS` de `state.ts` es la
+  frontera.** Los campos de aplicación (viewMode, settings, tagsMap,
+  savedSessions, openTabs…) están respaldados por señal vía `defineProperty`:
+  `S.viewMode = 'tags'` dispara la reactividad solo, y los componentes que los
+  leen se suscriben sin más. Los campos calientes (nodes, links, tf, hover…)
+  son planos: d3-force muta `node.x`/`node.y` en cada tick y el pintado
+  recorre `S.nodes` a 60 fps — un proxy reactivo cobraría peaje justo ahí.
+  Para lecturas derivadas del grafo (clusters, allBms, byId) existe
+  **`graphVersion()`**, el contador que `rebuild()` incrementa vía
+  `refreshPanels()`: llámalo antes de leerlas para declarar la dependencia.
+- **Un campo reactivo se REEMPLAZA, no se muta.** `S.tagsMap[url] = x` o
+  `S.historyMuted.add(d)` no disparan nada: asigna un objeto/array/Set nuevo.
+  Los contenedores que sí se mutan en sitio (expandedFolders, pinned,
+  folderPrefs, favicons) están fuera de la lista a propósito.
+- **La UI no se invoca, reacciona.** Los chips del topbar (`tabs.ts`,
+  `sessions.ts`) y el estado vacío (`ui/empty.tsx`) son efectos/componentes
+  sobre campos reactivos: no existe ningún `updateX()` que llamar tras
+  escribir. `requestDraw()` y `rebuildSoon()` sí siguen siendo llamadas
+  explícitas — son comandos (repinta el canvas, reconstruye el grafo), no
+  derivaciones.
 - **AMO avisa del `innerHTML`** que Solid usa en su helper `template()` sobre
   un `<template>` desconectado con HTML estático. `pnpm lint:firefox` lo
   reporta como *warning*, no como error, igual que el de `tabs.split`. Si algún

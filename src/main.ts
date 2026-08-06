@@ -25,29 +25,18 @@ import {
   refreshTabs,
   rescanTabsSoon,
   resolveCurrentWindow,
-  sessionKey,
-  updateBadge
+  sessionKey
 } from './tabs'
 import { loadTags, seedTagsIfEmpty } from './tags'
 import type { RawBookmarkNode } from './types'
-import { canvas, emptyEl, installErrorSurface } from './ui/dom'
+import { canvas, installErrorSurface } from './ui/dom'
+import { initEmptyState } from './ui/empty'
 import { installMenuDismiss } from './ui/menu'
 import { toast } from './ui/toast'
 
 installErrorSurface()
 localizeDom()
 readColors()
-
-function renderEmptyState(hasBookmarks: boolean): void {
-  emptyEl.hidden = hasBookmarks
-  if (hasBookmarks) return
-  const { title, body } = S.strategy.emptyMessage()
-  const h = document.createElement('h2')
-  h.textContent = title
-  const p = document.createElement('p')
-  p.textContent = body
-  emptyEl.replaceChildren(h, p)
-}
 
 type PrevPos = Map<string, { x?: number; y?: number; vx?: number; vy?: number }>
 
@@ -97,7 +86,6 @@ export async function rebuild(fit: boolean): Promise<void> {
   S.openTabs = res.map
   S.ghostTabs = res.ghosts
   S.lastOpenKey = sessionKey()
-  updateBadge()
 
   if (S.strategy.supportsHeat) {
     await computeHistory()
@@ -117,7 +105,6 @@ export async function rebuild(fit: boolean): Promise<void> {
   placeNodes(prevPos)
   invalidateGraphGeometry()
 
-  renderEmptyState(S.nodes.some(n => n.type === 'bm'))
   refreshPanels()
   startSimulation(fit ? 1 : 0.5)
   if (fit) {
@@ -200,6 +187,7 @@ async function boot(): Promise<void> {
   S.tagsMap = await loadTags()
 
   initPanels()
+  initEmptyState()
   initTabsUi()
   initSessionsUi()
   initSettingsUi()
