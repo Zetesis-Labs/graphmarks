@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>GraphMarks</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <span id="brand">GraphMarks</span>
+    <button id="open-graph" type="button" data-i18n="popupOpenGraph"></button>
+  </header>
+
+  <main>
+    <div id="tabinfo" hidden>
+      <img id="fav" alt="" hidden>
+      <div id="tabmeta">
+        <input id="tabtitle" type="text" spellcheck="false">
+        <div id="taburl"></div>
+      </div>
+    </div>
+
+    <form id="saveform" hidden>
+      <label><span data-i18n="popupFolder"></span>
+        <select id="folder"></select>
+      </label>
+      <label><span data-i18n="popupTags"></span>
+        <input id="tags" type="text" autocomplete="off" spellcheck="false" data-i18n-attr="placeholder:popupTagsPlaceholder">
+      </label>
+      <div id="tagcloud"></div>
+      <div id="statusrow">
+        <span id="savedmsg" hidden></span>
+        <button id="remove" type="button" class="danger" hidden data-i18n="popupRemove"></button>
+        <button id="save" type="submit" class="primary" data-i18n="popupSave"></button>
+      </div>
+    </form>
+
+    <p id="nosave" hidden data-i18n="popupNoTab"></p>
+  </main>
+
+  <script src="dist/popup.js"></script>
+</body>
+</html>

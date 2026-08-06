@@ -208,18 +208,28 @@ const SECTIONS: PanelSection[] = [
   { titleKey: 'settingsSync', hintKey: 'settingsSyncHint', build: buildSyncContent }
 ]
 
-/** Sección visible; se conserva entre repintados para no saltar al principio. */
-let activeSection = 0
+/** Posición del detalle; se conserva entre repintados para no saltar al inicio. */
+let paneScroll = 0
 
-function buildPane(section: PanelSection): HTMLDivElement {
+/** Todas las secciones en un único detalle: el maestro solo lleva hasta ellas. */
+function buildDetail(): HTMLDivElement {
   const pane = document.createElement('div')
   pane.className = 'md-pane'
-  const title = document.createElement('h4')
-  title.textContent = t(section.titleKey)
-  const hint = document.createElement('p')
-  hint.className = 'pane-hint'
-  hint.textContent = t(section.hintKey)
-  pane.append(title, hint, ...section.build())
+  SECTIONS.forEach((section, i) => {
+    const sec = document.createElement('section')
+    sec.className = 'md-section'
+    sec.dataset.index = String(i)
+    const title = document.createElement('h4')
+    title.textContent = t(section.titleKey)
+    const hint = document.createElement('p')
+    hint.className = 'pane-hint'
+    hint.textContent = t(section.hintKey)
+    sec.append(title, hint, ...section.build())
+    pane.appendChild(sec)
+  })
+  pane.addEventListener('scroll', () => {
+    paneScroll = pane.scrollTop
+  })
   return pane
 }
 
@@ -229,12 +239,31 @@ function buildNav(onPick: (index: number) => void): HTMLElement {
   SECTIONS.forEach((section, i) => {
     const tab = document.createElement('button')
     tab.type = 'button'
-    tab.className = i === activeSection ? 'md-tab active' : 'md-tab'
+    tab.className = i === 0 ? 'md-tab active' : 'md-tab'
     tab.textContent = t(section.titleKey)
     tab.addEventListener('click', () => onPick(i))
     nav.appendChild(tab)
   })
   return nav
+}
+
+/** Marca en el maestro la sección que se está leyendo. */
+function installScrollSpy(pane: HTMLDivElement, nav: HTMLElement): void {
+  const tabs = [...nav.querySelectorAll<HTMLButtonElement>('.md-tab')]
+  const observer = new IntersectionObserver(
+    entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        const i = Number((entry.target as HTMLElement).dataset.index ?? 0)
+        tabs.forEach((tab, k) => {
+          tab.classList.toggle('active', k === i)
+        })
+      }
+    },
+    // la banda superior del detalle decide qué sección se considera activa
+    { root: pane, rootMargin: '0px 0px -72% 0px' }
+  )
+  for (const sec of pane.querySelectorAll('.md-section')) observer.observe(sec)
 }
 
 /**
@@ -248,16 +277,16 @@ export function openSettingsPanel(): void {
   const h = document.createElement('h3')
   h.textContent = t('settingsTitle')
 
+  const pane = buildDetail()
+  const nav = buildNav(i => {
+    pane.querySelector<HTMLElement>(`.md-section[data-index="${i}"]`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    })
+  })
   const body = document.createElement('div')
   body.className = 'master-detail'
-  const section = SECTIONS[activeSection] ?? SECTIONS[0]
-  body.append(
-    buildNav(i => {
-      activeSection = i
-      openSettingsPanel()
-    }),
-    section ? buildPane(section) : document.createElement('div')
-  )
+  body.append(nav, pane)
 
   const row = document.createElement('div')
   row.className = 'actions'
@@ -270,6 +299,8 @@ export function openSettingsPanel(): void {
 
   dlg.append(h, body, row)
   if (!dlg.open) dlg.showModal()
+  pane.scrollTop = paneScroll
+  installScrollSpy(pane, nav)
 }
 
 export function initSettingsUi(): void {
