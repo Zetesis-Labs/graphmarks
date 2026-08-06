@@ -49,18 +49,16 @@ const common = {
   plugins: [stubD3Html]
 }
 
-/* Solo el popup usa Solid. Su compilador es un plugin de Babel (esbuild no
-   sabe compilar JSX de Solid por su cuenta), así que se aplica únicamente a
-   ese bundle: el grafo y el service worker siguen siendo esbuild puro. */
+/* El compilador de Solid es un plugin de Babel (esbuild no sabe compilar su
+   JSX por su cuenta), así que solo lo llevan los bundles con .tsx: newtab
+   (diálogos, ajustes, higiene, tour) y popup. El service worker no tiene UI y
+   sigue siendo esbuild puro. */
+const withSolid = { ...common, plugins: [...common.plugins, solidPlugin({ solid: { generate: 'dom' } })] }
+
 const jobs = [
-  { ...common, entryPoints: ['src/main.ts'], outfile: 'dist/newtab.js' },
+  { ...withSolid, entryPoints: ['src/main.ts'], outfile: 'dist/newtab.js' },
   { ...common, entryPoints: ['src/background.ts'], outfile: 'dist/background.js' },
-  {
-    ...common,
-    entryPoints: ['src/popup.tsx'],
-    outfile: 'dist/popup.js',
-    plugins: [...common.plugins, solidPlugin({ solid: { generate: 'dom' } })]
-  }
+  { ...withSolid, entryPoints: ['src/popup.tsx'], outfile: 'dist/popup.js' }
 ]
 
 function firefoxManifest(m) {

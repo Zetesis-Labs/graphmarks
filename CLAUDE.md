@@ -23,36 +23,49 @@ src/
   env.ts           IS_EXT / HAS_STORAGE / HAS_SYNC + pestañas mock
   browser-port.ts  puerto de datos: adaptadores chrome/mock (multinavegador.md)
   render.ts        pintado del canvas (sin lógica de dominio)
-  popup.tsx        página del botón de la barra (SolidJS, bundle aparte)
+  popup.tsx        página del botón de la barra (Solid, bundle aparte)
   graph/           build (topologías) · style (color/radio) · simulation · hit
-  ui/              dom (refs tipadas) · dialog · menu · toast
+  ui/              dom (refs tipadas) · modal+dialog+tour (Solid) · menu · toast
   lib/             utilidades puras y testeables (utils, tag-utils, storage)
   tabs · sessions · tags · bookmarks · history · search · panels · dialogs · transfer
-  settings · hygiene · graph-tab · custom · onboarding
+  settings.tsx · hygiene.tsx · graph-tab · custom · onboarding
 ```
 
 ## Solid
 
-`popup.tsx` es el **piloto de SolidJS**, elegido porque es una página aparte,
-con su propio bundle y sin acceso al estado del grafo: el radio de explosión
-es cero. Si convence, el siguiente paso son los diálogos y el panel de ajustes
-—que va a crecer con login y suscripciones—, después los paneles. **El grafo
-nunca.**
+**La UI de formulario está en SolidJS; el grafo no y no va a estarlo.**
 
-Tres cosas que conviene saber antes de ampliarlo:
+En Solid (`.tsx`): `popup`, `ui/dialog`, `ui/modal`, `ui/tour`, `settings` e
+`hygiene`. En DOM imperativo: `panels`, `search`, `ui/menu`, `ui/toast`. En
+canvas: `render/**`, `graph/**`, `interactions/**`.
+
+`ui/modal.tsx` es el host común: todos los modales comparten el `<dialog>` del
+HTML, así que montar uno desmonta el anterior con el `dispose()` de Solid, que
+libera el ámbito reactivo y vacía el contenedor. Un modal nuevo se escribe como
+componente y se monta con `renderModal(Componente, 'clase')`.
+
+`ui/dialog.tsx` conserva la API `openDialog(spec, onSubmit)`: `DialogSpec` sigue
+siendo la frontera, así que `dialogs.ts`, `sessions.ts` y `history-view.ts`
+construyen diálogos sin saber que por dentro hay JSX.
+
+Cuatro cosas que conviene saber:
 
 - **El compilador de Solid es un plugin de Babel**, no lo hace esbuild. Por eso
-  `scripts/build.mjs` aplica `solidPlugin` *solo* al job del popup: los otros
-  dos bundles siguen siendo esbuild puro y rápido.
-- **Dos modelos de estado.** `S` es un objeto mutable que el canvas lee a 60
-  fps; Solid necesita señales. Mientras el piloto siga acotado no hay conflicto
-  (el popup solo lee `S.settings` y `S.tagsMap` una vez al arrancar), pero
-  llevar Solid a los paneles obliga a decidir esto de verdad.
+  `scripts/build.mjs` aplica `solidPlugin` a los bundles con `.tsx` (newtab y
+  popup); `background` no tiene UI y sigue siendo esbuild puro.
+- **La línea que no se cruza es `S`.** Todo lo migrado renderiza a partir de una
+  foto: se abre, lee lo que necesita y se cierra. `panels.ts` no, porque pinta
+  desde `S.clusters` y `S.nodes`, que el grafo remuta en cada `rebuild()`.
+  Migrarlo obliga a decidir si `S` pasa a `createStore` con el canvas leyéndolo
+  a 60 fps a través de un proxy — **decisión pendiente, no la tomes de paso**.
 - **AMO avisa del `innerHTML`** que Solid usa en su helper `template()` sobre
   un `<template>` desconectado con HTML estático. `pnpm lint:firefox` lo
   reporta como *warning*, no como error, igual que el de `tabs.split`. Si algún
   día bloqueara, la salida es parchear `template()` con un `onLoad` de esbuild,
   como ya se hace con el `html()` de `d3-selection`.
+- **Biome no ve a través de `<Show>`**: un `<label>` que envuelva un input
+  condicional dispara `noLabelWithoutControl`. Se ata con `for`/`id`, que es
+  además la accesibilidad correcta.
 
 **Reglas de dependencia:**
 
