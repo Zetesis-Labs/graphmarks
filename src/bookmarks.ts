@@ -2,6 +2,7 @@ import { activePort } from './browser-port'
 import { app } from './bus'
 import { IS_EXT } from './env'
 import { t } from './i18n'
+import { flattenFolders } from './lib/folder-options'
 import { short } from './lib/utils'
 import { S } from './state'
 import { setTags, tagsOf } from './tags'
@@ -120,16 +121,7 @@ export async function loadTree(): Promise<RawBookmarkNode[]> {
 }
 
 export function folderOptions(excludeIds: Set<string> = new Set()): FolderOption[] {
-  const out: FolderOption[] = []
-  const walk = (items: RawBookmarkNode[], depth: number): void => {
-    for (const it of items) {
-      if (it.url || excludeIds.has(it.id)) continue
-      out.push({ id: it.id, title: it.title || '(sin nombre)', depth })
-      if (it.children) walk(it.children, depth + 1)
-    }
-  }
-  walk(S.lastTree[0]?.children ?? [], 0)
-  return out
+  return flattenFolders(S.lastTree, t('folderUnnamed'), excludeIds)
 }
 
 /** Adopción: crear un marcador a partir de una pestaña suelta. */

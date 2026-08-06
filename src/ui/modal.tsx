@@ -23,6 +23,8 @@ export function closeModal(): void {
 }
 
 dlg.addEventListener('close', () => {
+  // `close` llega en cola: si otro modal ya montó y reabrió, no es suyo
+  if (dlg.open) return
   dispose?.()
   dispose = undefined
 })

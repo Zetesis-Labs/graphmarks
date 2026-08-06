@@ -25,7 +25,8 @@ function clusterDotColor(c: Cluster): string {
   return slot >= 0 ? `var(${SERIES_VARS[slot]})` : 'var(--other)'
 }
 
-function switchView(mode: ViewMode): void {
+/** Único punto de cambio de vista: botones de la cabecera y paleta comparten esto. */
+export function switchView(mode: ViewMode): void {
   void (async () => {
     if (mode === S.viewMode) return
     S.activeSubgraph = null

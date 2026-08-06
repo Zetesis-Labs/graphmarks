@@ -44,3 +44,8 @@ jobs:
             test -s out.png && echo "OK newtab.html$q"
             rm -f out.png
           done
+
+      - name: Smoke test de la UI (modales, paleta, chips reactivos)
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: pnpm smoke:ui

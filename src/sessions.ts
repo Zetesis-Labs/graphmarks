@@ -172,7 +172,7 @@ export async function restoreSession(s: SavedSession): Promise<void> {
 
 /* --- UI --- */
 
-async function promptSaveSession(): Promise<void> {
+export async function promptSaveSession(): Promise<void> {
   await ensureTabGroups() // pedirlo aquí: estamos dentro de un gesto de clic
   const winOpts = [{ value: 'all', label: t('winMenuAll') }]
   S.winList.forEach((w, i) => {

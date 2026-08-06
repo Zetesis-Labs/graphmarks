@@ -1,5 +1,6 @@
 import { loadTree } from './bookmarks'
 import { app } from './bus'
+import { registerDefaultCommands } from './commands'
 import { loadCustomizations } from './custom'
 import { IS_EXT } from './env'
 import { addGhostNodes, pruneToOpen, rebuildNeighbors } from './graph/build'
@@ -191,6 +192,7 @@ async function boot(): Promise<void> {
   initTabsUi()
   initSessionsUi()
   initSettingsUi()
+  registerDefaultCommands()
   initSearch()
   initCanvasInteractions()
   installMenuDismiss()

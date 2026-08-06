@@ -3,6 +3,7 @@ import { render } from 'solid-js/web'
 import { IS_EXT } from './env'
 import { focusOrOpenGraph } from './graph-tab'
 import { t } from './i18n'
+import { flattenFolders } from './lib/folder-options'
 import { suggestFolder } from './lib/folder-suggest'
 import { type AppSettings, normalizeSettings, SETTINGS_DEFAULTS } from './lib/settings-shape'
 import { loadStore } from './lib/storage'
@@ -39,19 +40,6 @@ async function resolveTargetTab(): Promise<chrome.tabs.Tab | undefined> {
   return actives.find(tb => !isOwn(tb))
 }
 
-function flattenFolders(tree: RawBookmarkNode[]): FolderOption[] {
-  const out: FolderOption[] = []
-  const walk = (items: RawBookmarkNode[], depth: number): void => {
-    for (const it of items) {
-      if (it.url) continue
-      out.push({ id: it.id, title: it.title || t('folderUnnamed'), depth })
-      walk(it.children ?? [], depth + 1)
-    }
-  }
-  walk(tree[0]?.children ?? [], 0)
-  return out
-}
-
 interface CaptureData {
   url: string
   title: string
@@ -79,7 +67,7 @@ async function loadCapture(): Promise<CaptureData | null> {
   const tree = (await chrome.bookmarks.getTree()) as RawBookmarkNode[]
   const existing = (await chrome.bookmarks.search({ url }))[0]
   const parent = existing?.parentId ? (await chrome.bookmarks.get(existing.parentId))[0] : undefined
-  const folders = flattenFolders(tree)
+  const folders = flattenFolders(tree, t('folderUnnamed'))
 
   return {
     url,

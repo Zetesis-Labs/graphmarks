@@ -246,6 +246,7 @@
   "cmdShowGuide": "Ver la guía interactiva",
   "cmdSettings": "Abrir ajustes",
   "cmdHygiene": "Revisar higiene de marcadores",
+  "cmdSaveSession": "Guardar sesión de ventanas",
   "menuHygiene": "Higiene de marcadores…",
   "dlgHygiene": "Higiene de marcadores",
   "hygClean": "Todo limpio: sin duplicados, carpetas vacías ni marcadores invisibles.",

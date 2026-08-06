@@ -2,23 +2,16 @@ import { select } from 'd3-selection'
 import { createSignal, For, type JSX, Show } from 'solid-js'
 import { render } from 'solid-js/web'
 import { app } from './bus'
-import { promptNewBookmark, promptNewFolder } from './dialogs'
 import { members } from './graph/build'
 import { nodeColor } from './graph/style'
-import { openHygieneDialog } from './hygiene'
 import { t } from './i18n'
-import { unpinAll, zoom, zoomToNodes } from './interactions'
-import { type CommandItem, matchCommands, registerCommands } from './lib/command-palette'
+import { zoom, zoomToNodes } from './interactions'
+import { type CommandItem, matchCommands } from './lib/command-palette'
 import { matchesQuery, type SearchCandidate, scoreCandidate } from './lib/search-score'
-import { saveStore } from './lib/storage'
-import { refreshPanels } from './panels'
-import { openSettingsPanel } from './settings'
 import { S } from './state'
 import { activateTab, toggleOnlyOpen } from './tabs'
-import { exportData, importData } from './transfer'
-import type { GraphNode, ViewMode } from './types'
+import type { GraphNode } from './types'
 import { canvas, dlg, resultsEl, searchBox } from './ui/dom'
-import { strategies } from './view-strategy'
 
 const MAX_RESULTS = 12
 const DWELL_MS = 3000
@@ -31,135 +24,6 @@ const [searchSel, setSearchSel] = createSignal(-1)
 const rowEls: HTMLElement[] = []
 let dwellTimer: ReturnType<typeof setTimeout> | undefined
 let preSearchTf: typeof S.tf | null = null
-
-export function setupDefaultCommands(): void {
-  registerCommands([
-    {
-      id: 'cmd-new-folder',
-      titleKey: 'cmdNewFolder',
-      icon: '📁',
-      keywords: ['nueva', 'carpeta', 'folder', 'new'],
-      action: () => promptNewFolder()
-    },
-    {
-      id: 'cmd-new-bookmark',
-      titleKey: 'cmdNewBookmark',
-      icon: '🔖',
-      keywords: ['nuevo', 'marcador', 'bookmark', 'add'],
-      action: () => promptNewBookmark()
-    },
-    {
-      id: 'cmd-view-folders',
-      titleKey: 'cmdViewFolders',
-      icon: '📂',
-      keywords: ['carpetas', 'folders', 'vista'],
-      action: () => switchViewMode('folders')
-    },
-    {
-      id: 'cmd-view-tags',
-      titleKey: 'cmdViewTags',
-      icon: '🏷️',
-      keywords: ['tags', 'etiquetas', 'vista'],
-      action: () => switchViewMode('tags')
-    },
-    {
-      id: 'cmd-view-domains',
-      titleKey: 'cmdViewDomains',
-      icon: '🌐',
-      keywords: ['dominios', 'domains', 'vista'],
-      action: () => switchViewMode('domains')
-    },
-    {
-      id: 'cmd-view-history',
-      titleKey: 'cmdViewHistory',
-      icon: '◷',
-      keywords: ['historial', 'history', 'vista'],
-      action: () => switchViewMode('history')
-    },
-    {
-      id: 'cmd-toggle-only-open',
-      titleKey: 'cmdToggleOnlyOpen',
-      icon: '⧉',
-      shortcut: 'º',
-      keywords: ['abiertas', 'open', 'filtro'],
-      action: () => void toggleOnlyOpen()
-    },
-    {
-      id: 'cmd-toggle-ghosts',
-      titleKey: 'cmdToggleGhosts',
-      icon: '👻',
-      keywords: ['fantasmas', 'ghosts', 'pestañas'],
-      action: () => {
-        void (async () => {
-          S.showGhosts = !S.showGhosts
-          await saveStore('ghosts', S.showGhosts)
-          app.rebuildSoon()
-        })()
-      }
-    },
-    {
-      id: 'cmd-unpin-all',
-      titleKey: 'cmdUnpinAll',
-      icon: '📍',
-      keywords: ['desfijar', 'unpin', 'posiciones', 'layout'],
-      action: () => unpinAll()
-    },
-    {
-      id: 'cmd-frame-all',
-      titleKey: 'cmdFrameAll',
-      icon: '⌂',
-      keywords: ['encuadrar', 'frame', 'todo', 'zoom'],
-      action: () => zoomToNodes(S.nodes, 80)
-    },
-    {
-      id: 'cmd-export',
-      titleKey: 'cmdExport',
-      icon: '📤',
-      keywords: ['exportar', 'export', 'json'],
-      action: () => exportData()
-    },
-    {
-      id: 'cmd-import',
-      titleKey: 'cmdImport',
-      icon: '📥',
-      keywords: ['importar', 'import', 'json'],
-      action: () => importData()
-    },
-    {
-      id: 'cmd-show-guide',
-      titleKey: 'cmdShowGuide',
-      icon: '💡',
-      keywords: ['guia', 'tour', 'ayuda', 'guide'],
-      action: () => app.startGuide()
-    },
-    {
-      id: 'cmd-settings',
-      titleKey: 'cmdSettings',
-      icon: '⚙',
-      keywords: ['ajustes', 'settings', 'preferencias', 'configuracion'],
-      action: () => openSettingsPanel()
-    },
-    {
-      id: 'cmd-hygiene',
-      titleKey: 'cmdHygiene',
-      icon: '🧹',
-      keywords: ['higiene', 'duplicados', 'limpiar', 'hygiene', 'duplicates', 'cleanup'],
-      action: () => openHygieneDialog()
-    }
-  ])
-}
-
-function switchViewMode(mode: ViewMode): void {
-  if (S.viewMode === mode) return
-  S.activeSubgraph = null
-  S.expandedFolders.clear()
-  S.viewMode = mode
-  S.strategy = strategies[mode]
-  void saveStore('view', mode)
-  refreshPanels()
-  void app.rebuild(false)
-  zoomToNodes(S.nodes, 80)
-}
 
 function enterSearchMode(): void {
   if (preSearchTf) return
@@ -355,7 +219,6 @@ export function clearSearch(): void {
 }
 
 export function initSearch(): void {
-  setupDefaultCommands()
   render(() => <Results />, resultsEl)
   searchBox.addEventListener('input', e => applySearch((e.target as HTMLInputElement).value))
   searchBox.addEventListener('focus', () => {

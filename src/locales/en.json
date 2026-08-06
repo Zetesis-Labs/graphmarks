@@ -253,6 +253,7 @@
   "cmdShowGuide": "View interactive tour",
   "cmdSettings": "Open settings",
   "cmdHygiene": "Review bookmark hygiene",
+  "cmdSaveSession": "Save window session",
   "menuHygiene": "Bookmark hygiene…",
   "dlgHygiene": "Bookmark hygiene",
   "hygClean": "All clean: no duplicates, empty folders or invisible bookmarks.",
