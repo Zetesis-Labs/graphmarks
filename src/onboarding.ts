@@ -6,7 +6,7 @@ import { t } from './i18n'
 import { nodeMenu } from './interactions'
 import { loadStore, saveStore } from './lib/storage'
 import { type Rect, unionRects } from './lib/tour-place'
-import { buildViews } from './panels'
+import { refreshPanels } from './panels'
 import { S } from './state'
 import type { GraphNode, TagsMap, ViewMode } from './types'
 import { canvas, listPanel, menuEl, resultsEl, searchBox, sessionsEl, tabcountEl, viewsEl } from './ui/dom'
@@ -37,7 +37,7 @@ async function enterDemo(): Promise<void> {
   S.activeSubgraph = null
   S.tagsMap = { ...(window.SEED_TAGS ?? {}) }
   invalidateHistoryGraph()
-  buildViews()
+  refreshPanels()
   await app.rebuild(true)
 }
 
@@ -52,7 +52,7 @@ async function exitDemo(): Promise<void> {
   hideMenu()
   app.clearSearch()
   invalidateHistoryGraph()
-  buildViews()
+  refreshPanels()
   await app.rebuild(true)
 }
 
@@ -62,7 +62,7 @@ async function switchView(mode: ViewMode): Promise<void> {
   S.viewMode = mode
   S.strategy = strategies[mode]
   S.activeSubgraph = null
-  buildViews()
+  refreshPanels()
   await app.rebuild(false)
   app.zoomToNodes(S.nodes, 80)
 }

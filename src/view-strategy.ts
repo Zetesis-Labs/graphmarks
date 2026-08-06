@@ -1,3 +1,4 @@
+import { lazy } from 'solid-js'
 import { OTHER_CONTAINER } from './constants'
 import { buildGraphDomains, buildGraphFolders, buildGraphTags, members } from './graph/build'
 import { t } from './i18n'
@@ -5,6 +6,10 @@ import { short } from './lib/utils'
 import { S } from './state'
 import { setTags, tagsOf } from './tags'
 import type { MenuItem, ViewMode, ViewStrategy } from './types'
+
+/* La leyenda del historial se carga en diferido: importarla estáticamente
+   cerraría el ciclo view-strategy → history-view → state → view-strategy. */
+const HistoryLegend = lazy(() => import('./ui/legend'))
 
 /* --- helpers compartidos --- */
 
@@ -208,52 +213,7 @@ const historyStrategy: ViewStrategy = {
   },
 
   legendItems() {
-    const items: HTMLElement[] = []
-
-    void import('./history-view').then(_hv => {
-      // Lazy load history helpers when rendering legend
-    })
-
-    // Read synchronous values from S if needed or import history-view
-    const range = document.createElement('button')
-    range.className = 'chip active'
-    range.title = t('historyRangeTitle')
-    void import('./history-view').then(hv => {
-      range.textContent = `◷ ${hv.historyRangeLabel()} · ${S.allBms.length} ▾`
-    })
-    range.addEventListener('click', ev => {
-      ev.stopPropagation()
-      const rect = range.getBoundingClientRect()
-      void Promise.all([import('./ui/menu'), import('./history-view')]).then(([menu, hv]) => {
-        menu.showMenu(rect.left, rect.bottom + 6, hv.historyRangeMenu())
-      })
-    })
-    items.push(range)
-
-    if (S.historyRange.preset === 'custom') {
-      const clear = document.createElement('button')
-      clear.className = 'chip'
-      clear.textContent = '✕'
-      clear.title = t('historyClearFilter')
-      clear.addEventListener('click', () => {
-        void import('./history-view').then(hv => hv.setHistoryRange({ preset: '24h' }))
-      })
-      items.push(clear)
-    }
-
-    const unsavedCount = S.allBms.filter(n => n.unsaved).length
-    if (unsavedCount || S.historyUnsavedOnly) {
-      const triage = document.createElement('button')
-      triage.className = S.historyUnsavedOnly ? 'chip active' : 'chip'
-      triage.textContent = `☆ ${t('historyUnsavedChip')} · ${unsavedCount}`
-      triage.title = t('historyUnsavedTitle')
-      triage.addEventListener('click', () => {
-        void import('./history-view').then(hv => hv.setHistoryUnsavedOnly(!S.historyUnsavedOnly))
-      })
-      items.push(triage)
-    }
-
-    return items
+    return [HistoryLegend]
   },
 
   emptyMessage() {

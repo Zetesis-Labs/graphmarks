@@ -25,19 +25,20 @@ src/
   render.ts        pintado del canvas (sin lógica de dominio)
   popup.tsx        página del botón de la barra (Solid, bundle aparte)
   graph/           build (topologías) · style (color/radio) · simulation · hit
-  ui/              dom (refs tipadas) · modal+dialog+tour (Solid) · menu · toast
+  ui/              dom (refs tipadas) · modal · dialog · menu · toast · tour · legend
   lib/             utilidades puras y testeables (utils, tag-utils, storage)
-  tabs · sessions · tags · bookmarks · history · search · panels · dialogs · transfer
-  settings.tsx · hygiene.tsx · graph-tab · custom · onboarding
+  tabs · sessions · tags · bookmarks · history · dialogs · transfer
+  panels.tsx · search.tsx · settings.tsx · hygiene.tsx · graph-tab · custom · onboarding
 ```
 
 ## Solid
 
-**La UI de formulario está en SolidJS; el grafo no y no va a estarlo.**
+**Todo el DOM está en SolidJS; el grafo es canvas y no va a dejar de serlo.**
 
-En Solid (`.tsx`): `popup`, `ui/dialog`, `ui/modal`, `ui/tour`, `settings` e
-`hygiene`. En DOM imperativo: `panels`, `search`, `ui/menu`, `ui/toast`. En
-canvas: `render/**`, `graph/**`, `interactions/**`.
+En Solid (`.tsx`): `popup`, `panels`, `search`, `settings`, `hygiene`, y en
+`ui/` el `modal`, `dialog`, `menu`, `toast`, `tour` y `legend`. En canvas:
+`render/**`, `graph/**`, `interactions/**` — ahí no hay DOM que reconciliar,
+hay un bucle de pintado.
 
 `ui/modal.tsx` es el host común: todos los modales comparten el `<dialog>` del
 HTML, así que montar uno desmonta el anterior con el `dispose()` de Solid, que
@@ -53,11 +54,12 @@ Cuatro cosas que conviene saber:
 - **El compilador de Solid es un plugin de Babel**, no lo hace esbuild. Por eso
   `scripts/build.mjs` aplica `solidPlugin` a los bundles con `.tsx` (newtab y
   popup); `background` no tiene UI y sigue siendo esbuild puro.
-- **La línea que no se cruza es `S`.** Todo lo migrado renderiza a partir de una
-  foto: se abre, lee lo que necesita y se cierra. `panels.ts` no, porque pinta
-  desde `S.clusters` y `S.nodes`, que el grafo remuta en cada `rebuild()`.
-  Migrarlo obliga a decidir si `S` pasa a `createStore` con el canvas leyéndolo
-  a 60 fps a través de un proxy — **decisión pendiente, no la tomes de paso**.
+- **`S` no es reactivo y no debe serlo.** d3-force muta `node.x`/`node.y` en
+  cada tick y el pintado recorre `S.nodes` a 60 fps: un `createStore` pondría
+  trampas de proxy en el camino más caliente para dar reactividad fina que el
+  canvas no usa. La UI se entera por **`graphVersion()`** (en `state.ts`), un
+  contador que `rebuild()` incrementa vía `refreshPanels()`. Un componente que
+  lea `S` debe llamar antes a `graphVersion()` para declarar la dependencia.
 - **AMO avisa del `innerHTML`** que Solid usa en su helper `template()` sobre
   un `<template>` desconectado con HTML estático. `pnpm lint:firefox` lo
   reporta como *warning*, no como error, igual que el de `tabs.split`. Si algún

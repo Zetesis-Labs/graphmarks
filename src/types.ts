@@ -1,4 +1,5 @@
 import type { SimulationNodeDatum } from 'd3-force'
+import type { Component } from 'solid-js'
 
 export type ViewMode = 'folders' | 'tags' | 'domains' | 'history'
 
@@ -129,8 +130,12 @@ export interface ViewStrategy {
   hubMenu?(n: GraphNode): MenuItem[] | undefined
   /** Color propio de un marcador según la semántica de la vista. undefined = default. */
   bmColor?(n: GraphNode): string | undefined
-  /** Elementos extra para la leyenda de la cabecera. */
-  legendItems?(): HTMLElement[]
+  /**
+   * Componentes extra para la leyenda de la cabecera. Devuelve componentes y no
+   * DOM para que la vista pueda expresar carga diferida y estado sin mutar
+   * nodos a posteriori; `panels` los monta bajo una raíz de Solid.
+   */
+  legendItems?(): Component[]
   /** ¿Soporta nodos fantasma (pestañas sueltas)? */
   supportsGhosts: boolean
   /** ¿Se aplica la presentación de carpetas (subgrafos, colapsadas)? */

@@ -1,4 +1,5 @@
 import { type ZoomTransform, zoomIdentity } from 'd3-zoom'
+import { createSignal } from 'solid-js'
 import { SERIES_VARS } from './constants'
 import { HAS_SYNC } from './env'
 import { type AppSettings, normalizeSettings, SETTINGS_DEFAULTS } from './lib/settings-shape'
@@ -154,6 +155,24 @@ export function readColors(): void {
   COLORS.baseline = v('--baseline')
   COLORS.other = v('--other')
   COLORS.series = SERIES_VARS.map(v)
+}
+
+/**
+ * Proyección reactiva de `S` para la UI: un contador que se incrementa cuando
+ * el grafo cambia. Los componentes lo leen para declarar la dependencia y
+ * luego consultan `S` libremente.
+ *
+ * Es deliberadamente esto y no un `createStore` sobre `S`: d3-force muta
+ * `node.x`/`node.y` en cada tick y el pintado recorre `S.nodes` a 60 fps, así
+ * que un proxy reactivo cobraría su peaje justo en el camino más caliente
+ * para dar reactividad fina que el canvas no usa —se repinta en bucle—.
+ */
+const [graphVersion, setGraphVersion] = createSignal(0)
+
+export { graphVersion }
+
+export function bumpGraphVersion(): void {
+  setGraphVersion(v => v + 1)
 }
 
 /** ¿Debe usarse chrome.storage.sync ahora mismo? API presente y ajuste activo. */

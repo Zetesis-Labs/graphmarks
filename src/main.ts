@@ -11,7 +11,7 @@ import { localizeDom, t } from './i18n'
 import { initCanvasInteractions, resetZoom, zoomToNodes } from './interactions'
 import { computeResizedTransform } from './lib/viewport-resize'
 import { maybeStartOnboarding, startOnboarding } from './onboarding'
-import { buildLegend, buildList, buildViews, initPanels } from './panels'
+import { initPanels, refreshPanels } from './panels'
 import { invalidateGraphGeometry, requestDraw } from './render'
 import { applySearch, clearSearch, initSearch } from './search'
 import { initSessionsUi, loadSessions } from './sessions'
@@ -118,8 +118,7 @@ export async function rebuild(fit: boolean): Promise<void> {
   invalidateGraphGeometry()
 
   renderEmptyState(S.nodes.some(n => n.type === 'bm'))
-  buildLegend()
-  buildList()
+  refreshPanels()
   startSimulation(fit ? 1 : 0.5)
   if (fit) {
     resetZoom()
@@ -235,7 +234,6 @@ async function boot(): Promise<void> {
   }).observe(canvas)
   installChromeListeners()
 
-  buildViews()
   await rebuild(true)
 
   // primera vez: sembrar etiquetas de ejemplo para las URLs presentes

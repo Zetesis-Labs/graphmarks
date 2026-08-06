@@ -1,4 +1,6 @@
 import { select } from 'd3-selection'
+import { createSignal, For, type JSX, Show } from 'solid-js'
+import { render } from 'solid-js/web'
 import { app } from './bus'
 import { promptNewBookmark, promptNewFolder } from './dialogs'
 import { members } from './graph/build'
@@ -9,7 +11,7 @@ import { unpinAll, zoom, zoomToNodes } from './interactions'
 import { type CommandItem, matchCommands, registerCommands } from './lib/command-palette'
 import { matchesQuery, type SearchCandidate, scoreCandidate } from './lib/search-score'
 import { saveStore } from './lib/storage'
-import { buildViews } from './panels'
+import { refreshPanels } from './panels'
 import { openSettingsPanel } from './settings'
 import { S } from './state'
 import { activateTab, toggleOnlyOpen } from './tabs'
@@ -21,10 +23,12 @@ import { strategies } from './view-strategy'
 const MAX_RESULTS = 12
 const DWELL_MS = 3000
 
-let searchItems: GraphNode[] = []
-let commandItems: CommandItem[] = []
-let isCommandMode = false
-let searchSel = -1
+const [searchItems, setSearchItems] = createSignal<GraphNode[]>([])
+const [commandItems, setCommandItems] = createSignal<CommandItem[]>([])
+const [isCommandMode, setIsCommandMode] = createSignal(false)
+const [searchSel, setSearchSel] = createSignal(-1)
+/** Referencias a las filas pintadas: `scrollIntoView` necesita el elemento. */
+const rowEls: HTMLElement[] = []
 let dwellTimer: ReturnType<typeof setTimeout> | undefined
 let preSearchTf: typeof S.tf | null = null
 
@@ -152,7 +156,7 @@ function switchViewMode(mode: ViewMode): void {
   S.viewMode = mode
   S.strategy = strategies[mode]
   void saveStore('view', mode)
-  buildViews()
+  refreshPanels()
   void app.rebuild(false)
   zoomToNodes(S.nodes, 80)
 }
@@ -171,10 +175,10 @@ function exitSearchMode(): void {
   clearTimeout(dwellTimer)
   S.searchFocusNode = null
   resultsEl.hidden = true
-  searchItems = []
-  commandItems = []
-  isCommandMode = false
-  searchSel = -1
+  setSearchItems([])
+  setCommandItems([])
+  setIsCommandMode(false)
+  setSearchSel(-1)
 }
 
 function nodeKind(n: GraphNode): string {
@@ -207,79 +211,68 @@ function buildResults(q: string): GraphNode[] {
     .map(x => x.n)
 }
 
-function renderCommandResults(): void {
-  resultsEl.replaceChildren()
-  resultsEl.hidden = !commandItems.length
-  commandItems.forEach((cmd, i) => {
-    const li = document.createElement('li')
-    li.classList.toggle('sel', i === searchSel)
-    const icon = document.createElement('span')
-    icon.className = 'dot'
-    icon.textContent = cmd.icon
-    icon.style.background = 'transparent'
-    icon.style.textAlign = 'center'
-    icon.style.fontSize = '12px'
-    const tEl = document.createElement('span')
-    tEl.className = 'rt'
-    tEl.textContent = t(cmd.titleKey)
-    const kind = document.createElement('span')
-    kind.className = 'kind'
-    kind.textContent = cmd.shortcut ?? t('cmdCategory')
-    li.append(icon, tEl, kind)
-    li.addEventListener('mousedown', ev => {
-      ev.preventDefault()
-      runCommandResult(cmd)
-    })
-    li.addEventListener('mouseenter', () => selectResult(i, false))
-    resultsEl.appendChild(li)
-  })
-}
-
-function renderResults(): void {
-  if (isCommandMode) {
-    renderCommandResults()
-    return
+function Results(): JSX.Element {
+  const row = (i: number, el: HTMLElement): void => {
+    rowEls[i] = el
   }
-  resultsEl.replaceChildren()
-  resultsEl.hidden = !searchItems.length
-  searchItems.forEach((n, i) => {
-    const li = document.createElement('li')
-    li.classList.toggle('sel', i === searchSel)
-    const dot = document.createElement('span')
-    dot.className = 'dot'
-    dot.style.background = nodeColor(n)
-    const t = document.createElement('span')
-    t.className = 'rt'
-    t.textContent = n.title
-    t.title = n.url ?? n.title
-    const kind = document.createElement('span')
-    kind.className = 'kind'
-    kind.textContent = nodeKind(n)
-    li.append(dot, t, kind)
-    li.addEventListener('mousedown', ev => {
-      ev.preventDefault()
-      runResult(n)
-    })
-    li.addEventListener('mouseenter', () => selectResult(i, false))
-    resultsEl.appendChild(li)
-  })
+  return (
+    <Show
+      when={isCommandMode()}
+      fallback={
+        <For each={searchItems()}>
+          {(n, i) => (
+            <li
+              ref={el => row(i(), el)}
+              class={searchSel() === i() ? 'sel' : ''}
+              onMouseDown={ev => {
+                ev.preventDefault()
+                runResult(n)
+              }}
+              onMouseEnter={() => selectResult(i(), false)}
+            >
+              <span class="dot" style={{ background: nodeColor(n) }} />
+              <span class="rt" title={n.url ?? n.title}>
+                {n.title}
+              </span>
+              <span class="kind">{nodeKind(n)}</span>
+            </li>
+          )}
+        </For>
+      }
+    >
+      <For each={commandItems()}>
+        {(cmd, i) => (
+          <li
+            ref={el => row(i(), el)}
+            class={searchSel() === i() ? 'sel' : ''}
+            onMouseDown={ev => {
+              ev.preventDefault()
+              runCommandResult(cmd)
+            }}
+            onMouseEnter={() => selectResult(i(), false)}
+          >
+            <span class="dot cmd">{cmd.icon}</span>
+            <span class="rt">{t(cmd.titleKey)}</span>
+            <span class="kind">{cmd.shortcut ?? t('cmdCategory')}</span>
+          </li>
+        )}
+      </For>
+    </Show>
+  )
 }
 
 function selectResult(i: number, scroll = true): void {
-  searchSel = i
-  ;[...resultsEl.children].forEach((li, j) => {
-    li.classList.toggle('sel', j === i)
-  })
-  if (isCommandMode) {
-    if (scroll) resultsEl.children[i]?.scrollIntoView({ block: 'nearest' })
+  setSearchSel(i)
+  if (isCommandMode()) {
+    if (scroll) rowEls[i]?.scrollIntoView({ block: 'nearest' })
     return
   }
-  const n = searchItems[i] ?? null
+  const n = searchItems()[i] ?? null
   S.searchFocusNode = n
   clearTimeout(dwellTimer)
   if (n) {
     dwellTimer = setTimeout(() => zoomToNodes([n], 150), DWELL_MS)
-    if (scroll) resultsEl.children[i]?.scrollIntoView({ block: 'nearest' })
+    if (scroll) rowEls[i]?.scrollIntoView({ block: 'nearest' })
   }
   app.requestDraw()
 }
@@ -318,18 +311,20 @@ function runResult(n: GraphNode | undefined): void {
 
 export function applySearch(q: string): void {
   if (q.trim().startsWith('>')) {
-    isCommandMode = true
+    const matches = matchCommands(q, t)
+    rowEls.length = 0
+    setIsCommandMode(true)
     S.searchQuery = q.trim()
     S.focusSet = null
     S.searchFocusNode = null
-    commandItems = matchCommands(q, t)
-    searchSel = commandItems.length ? 0 : -1
-    renderResults()
+    setCommandItems(matches)
+    setSearchSel(matches.length ? 0 : -1)
+    resultsEl.hidden = !matches.length
     app.requestDraw()
     return
   }
 
-  isCommandMode = false
+  setIsCommandMode(false)
   S.searchQuery = q.trim().toLowerCase()
   if (!S.searchQuery) {
     S.focusSet = null
@@ -343,10 +338,11 @@ export function applySearch(q: string): void {
     }
     S.focusSet = s
   }
-  searchItems = buildResults(q)
-  searchSel = searchItems.length ? 0 : -1
-  renderResults()
-  selectResult(searchSel, false)
+  const items = buildResults(q)
+  rowEls.length = 0
+  setSearchItems(items)
+  resultsEl.hidden = !items.length
+  selectResult(items.length ? 0 : -1, false)
   app.requestDraw()
 }
 
@@ -360,6 +356,7 @@ export function clearSearch(): void {
 
 export function initSearch(): void {
   setupDefaultCommands()
+  render(() => <Results />, resultsEl)
   searchBox.addEventListener('input', e => applySearch((e.target as HTMLInputElement).value))
   searchBox.addEventListener('focus', () => {
     enterSearchMode()
@@ -376,15 +373,15 @@ export function initSearch(): void {
     }, 150)
   })
   searchBox.addEventListener('keydown', e => {
-    const listLen = isCommandMode ? commandItems.length : searchItems.length
+    const listLen = isCommandMode() ? commandItems().length : searchItems().length
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       if (!listLen) return
       const d = e.key === 'ArrowDown' ? 1 : -1
-      selectResult((searchSel + d + listLen) % listLen)
+      selectResult((searchSel() + d + listLen) % listLen)
     } else if (e.key === 'Enter') {
-      if (isCommandMode) runCommandResult(commandItems[searchSel] ?? commandItems[0])
-      else runResult(searchItems[searchSel] ?? searchItems[0])
+      if (isCommandMode()) runCommandResult(commandItems()[searchSel()] ?? commandItems()[0])
+      else runResult(searchItems()[searchSel()] ?? searchItems()[0])
     } else if (e.key === 'Escape') {
       clearSearch()
       searchBox.blur()
