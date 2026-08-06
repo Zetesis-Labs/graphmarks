@@ -49,10 +49,12 @@ export function promptTagFolder(folder: GraphNode): void {
       void (async () => {
         const add = normTags(v.tags ?? '')
         if (!add.length) return
+        const next = { ...S.tagsMap }
         for (const m of members(folder)) {
           if (m.type !== 'bm' || !m.url) continue
-          S.tagsMap[m.url] = [...new Set([...tagsOf(m.url), ...add])]
+          next[m.url] = [...new Set([...tagsOf(m.url), ...add])]
         }
+        S.tagsMap = next
         await persistTags()
         app.rebuildSoon()
       })()
@@ -67,8 +69,9 @@ export function promptRenameTag(tag: string): void {
       void (async () => {
         const to = normTags(v.name ?? '')[0]
         if (!to || to === tag) return
-        for (const [url, ts] of Object.entries(S.tagsMap))
-          S.tagsMap[url] = [...new Set(ts.map(t => (t === tag ? to : t)))]
+        S.tagsMap = Object.fromEntries(
+          Object.entries(S.tagsMap).map(([url, ts]) => [url, [...new Set(ts.map(t => (t === tag ? to : t)))]])
+        )
         await persistTags()
         app.rebuildSoon()
       })()
@@ -86,11 +89,11 @@ export function confirmDeleteTag(tag: string): void {
     },
     () => {
       void (async () => {
-        for (const [url, ts] of Object.entries(S.tagsMap)) {
-          const left = ts.filter(t => t !== tag)
-          if (left.length) S.tagsMap[url] = left
-          else delete S.tagsMap[url]
-        }
+        S.tagsMap = Object.fromEntries(
+          Object.entries(S.tagsMap)
+            .map(([url, ts]) => [url, ts.filter(t => t !== tag)] as const)
+            .filter(([, ts]) => ts.length)
+        )
         await persistTags()
         app.rebuildSoon()
       })()

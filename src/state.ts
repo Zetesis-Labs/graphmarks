@@ -1,4 +1,5 @@
 import { type ZoomTransform, zoomIdentity } from 'd3-zoom'
+import { createSignal } from 'solid-js'
 import { SERIES_VARS } from './constants'
 import { HAS_SYNC } from './env'
 import { type AppSettings, normalizeSettings, SETTINGS_DEFAULTS } from './lib/settings-shape'
@@ -35,7 +36,8 @@ export interface FaviconRecord {
  */
 export interface AppState {
   viewMode: ViewMode
-  strategy: ViewStrategy
+  /** Derivado de `viewMode`: solo getter, ver registerStrategies. */
+  readonly strategy: ViewStrategy
   tagsMap: TagsMap
   nodes: GraphNode[]
   links: GraphLink[]
@@ -83,11 +85,26 @@ export interface AppState {
   settings: AppSettings
 }
 
-import { strategies } from './view-strategy'
+/**
+ * Estrategia inerte mientras el arranque no ha registrado las reales (ver
+ * `registerStrategies`). `state` no importa `view-strategy` a propósito:
+ * arrastraría el grafo entero (build, d3, tags) a todo bundle que toque `S`
+ * — el popup pesaba un tercio más solo por esa línea.
+ */
+const bootStrategy: ViewStrategy = {
+  build: () => true,
+  handleDrop: () => {},
+  isDropTarget: () => false,
+  supportsGhosts: false,
+  supportsPresentation: false,
+  supportsHeat: false,
+  hostLinks: false,
+  emptyMessage: () => ({ title: '', body: '' })
+}
 
 export const S: AppState = {
   viewMode: 'folders',
-  strategy: strategies.folders,
+  strategy: bootStrategy,
   tagsMap: {},
   nodes: [],
   links: [],
@@ -156,6 +173,95 @@ export function readColors(): void {
   COLORS.series = SERIES_VARS.map(v)
 }
 
+/* --- reactividad de nivel aplicación ---
+
+   `S` tiene dos niveles, y la lista de abajo es la frontera:
+
+   - Campos CALIENTES (nodes, links, tf, hover…): planos, sin reactividad.
+     d3-force muta node.x/node.y en cada tick y el pintado recorre S.nodes a
+     60 fps; un store reactivo cobraría peaje de proxy en el camino más
+     caliente para dar una finura que el canvas no usa — se repinta en bucle.
+
+   - Campos de APLICACIÓN (los de REACTIVE_FIELDS): respaldados por señal vía
+     defineProperty. La sintaxis no cambia (`S.viewMode = 'tags'` dispara la
+     reactividad sola), y leerlos desde el canvas es una llamada a función.
+
+   Regla de oro: un campo reactivo se REEMPLAZA, no se muta. `S.tagsMap[u]=x`
+   o `S.historyMuted.add(d)` no disparan nada; hay que asignar un objeto/Set
+   nuevo. Los contenedores que sí se mutan en sitio (expandedFolders, pinned,
+   folderPrefs, favicons…) quedan fuera de la lista a propósito. */
+
+const REACTIVE_FIELDS = [
+  'viewMode',
+  'settings',
+  'onlyOpen',
+  'showGhosts',
+  'winFilter',
+  'searchQuery',
+  'lastOpenKey',
+  'tagsMap',
+  'savedSessions',
+  'openTabs',
+  'ghostTabs',
+  'winList',
+  'currentWinId',
+  'historyRange',
+  'historyGrouping',
+  'historyMuted',
+  'historyUnsavedOnly',
+  'activeSubgraph',
+  'demo'
+] as const satisfies readonly (keyof AppState)[]
+
+/** Congela lo congelable: una mutación en sitio pasa de bug mudo a TypeError. */
+function freezeShallow<T>(v: T): T {
+  // Map y Set no se congelan de forma útil (freeze no bloquea set/add)
+  if (v && typeof v === 'object' && !(v instanceof Map) && !(v instanceof Set)) Object.freeze(v)
+  return v
+}
+
+function reactiveField<K extends keyof AppState>(key: K): void {
+  const [get, set] = createSignal<AppState[K]>(freezeShallow(S[key]))
+  Object.defineProperty(S, key, {
+    get,
+    set: (v: AppState[K]) => set(() => freezeShallow(v)),
+    enumerable: true,
+    configurable: true
+  })
+}
+for (const key of REACTIVE_FIELDS) reactiveField(key)
+
+/* `strategy` no se almacena: ES `viewMode` resuelto. Tenerlo como campo aparte
+   permitía que divergieran —loadPersistedState dejaba de hecho una ventana en
+   la que lo hacían— así que aquí solo hay getter: el tipo es readonly y
+   asignarlo tampoco pasaría de runtime. Al derivar de viewMode, que sí es
+   señal, la reactividad viaja sola. El mapa lo registra el arranque. */
+let registry: Record<ViewMode, ViewStrategy> | null = null
+
+export function registerStrategies(map: Record<ViewMode, ViewStrategy>): void {
+  registry = map
+}
+
+Object.defineProperty(S, 'strategy', {
+  get: () => registry?.[S.viewMode] ?? bootStrategy,
+  enumerable: true,
+  configurable: true
+})
+
+/**
+ * Lo que la señal por campo no cubre: «el grafo se reconstruyó». Nodos,
+ * clusters y allBms son calientes, así que las lecturas derivadas de ellos
+ * declaran la dependencia llamando a graphVersion() y rebuild() la dispara
+ * vía refreshPanels().
+ */
+const [graphVersion, setGraphVersion] = createSignal(0)
+
+export { graphVersion }
+
+export function bumpGraphVersion(): void {
+  setGraphVersion(v => v + 1)
+}
+
 /** ¿Debe usarse chrome.storage.sync ahora mismo? API presente y ajuste activo. */
 export function syncActive(): boolean {
   return HAS_SYNC && S.settings.syncEnabled
@@ -176,8 +282,6 @@ export function saveLayoutSoon(): void {
 export async function loadPersistedState(params: URLSearchParams): Promise<void> {
   const view = params.get('view') ?? (await loadStore<string>('view', 'folders'))
   S.viewMode = view === 'tags' || view === 'domains' || view === 'history' ? view : 'folders'
-  const { strategies } = await import('./view-strategy')
-  S.strategy = strategies[S.viewMode]
   S.onlyOpen = params.get('filter') === 'open' || (await loadStore('onlyOpen', false))
   S.showGhosts = await loadStore('ghosts', true)
   S.winFilter = await loadStore<WinFilter>('winFilter', 'all')

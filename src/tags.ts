@@ -18,8 +18,11 @@ export function allTags(): Array<[string, number]> {
 }
 
 export async function setTags(url: string, tags: string[]): Promise<void> {
-  if (tags.length) S.tagsMap[url] = tags
-  else delete S.tagsMap[url]
+  // reemplazo, no mutación: tagsMap es reactivo (ver state.ts)
+  const next = { ...S.tagsMap }
+  if (tags.length) next[url] = tags
+  else delete next[url]
+  S.tagsMap = next
   await persistTags()
   app.rebuildSoon()
 }
@@ -78,7 +81,7 @@ export async function persistTags(): Promise<void> {
       if (Object.keys(changed).length) await chrome.storage.sync.set(changed)
       return
     } catch (e) {
-      void import('./ui/toast').then(m => m.toast(t('toastSyncFallback', (e as Error).message ?? String(e))))
+      app.notify(t('toastSyncFallback', (e as Error).message ?? String(e)))
     }
   }
   await saveStore('tags', S.tagsMap)

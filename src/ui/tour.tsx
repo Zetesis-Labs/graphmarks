@@ -1,3 +1,5 @@
+import { createSignal, type JSX, Show } from 'solid-js'
+import { render } from 'solid-js/web'
 import { t } from '../i18n'
 import { placePopover, type Rect } from '../lib/tour-place'
 
@@ -15,12 +17,15 @@ export interface TourStep {
 }
 
 const SPOT_PAD = 8
+const REPOSITION_MS = 400
+
+const [steps, setSteps] = createSignal<TourStep[]>([])
+const [idx, setIdx] = createSignal(0)
 
 let root: HTMLDivElement | null = null
-let spot: HTMLDivElement | null = null
-let pop: HTMLDivElement | null = null
-let steps: TourStep[] = []
-let idx = 0
+let spot: HTMLDivElement | undefined
+let pop: HTMLDivElement | undefined
+let dispose: (() => void) | undefined
 let onEnd: (() => void) | null = null
 let repositionTimer: ReturnType<typeof setInterval> | undefined
 
@@ -28,9 +33,12 @@ export function isTourOpen(): boolean {
   return root !== null
 }
 
+/* El posicionamiento se queda imperativo a propósito: depende de medidas del
+   DOM ya pintado (offsetWidth del popover) y del rect del nodo, que deriva con
+   la física del grafo. No hay nada reactivo que modelar aquí. */
 function position(): void {
   if (!spot || !pop) return
-  const target = steps[idx]?.target?.() ?? null
+  const target = steps()[idx()]?.target?.() ?? null
   if (target) {
     spot.style.opacity = '1'
     spot.style.left = `${target.x - SPOT_PAD}px`
@@ -53,46 +61,15 @@ function position(): void {
   pop.style.top = `${at.y}px`
 }
 
-function render(): void {
-  if (!pop) return
-  const step = steps[idx]
-  if (!step) return
-  pop.replaceChildren()
-  const h = document.createElement('h3')
-  h.textContent = step.title
-  const body = document.createElement('p')
-  body.textContent = step.body
-  const row = document.createElement('div')
-  row.className = 'actions'
-  const count = document.createElement('span')
-  count.className = 'count'
-  count.textContent = t('tourCount', idx + 1, steps.length)
-  const skip = document.createElement('button')
-  skip.type = 'button'
-  skip.textContent = t('tourSkip')
-  skip.addEventListener('click', () => endTour())
-  const prev = document.createElement('button')
-  prev.type = 'button'
-  prev.textContent = t('tourPrev')
-  prev.hidden = idx === 0
-  prev.addEventListener('click', () => go(idx - 1))
-  const next = document.createElement('button')
-  next.type = 'button'
-  next.className = 'primary'
-  next.textContent = idx === steps.length - 1 ? (step.cta ?? t('tourNext')) : t('tourNext')
-  next.addEventListener('click', () => (idx === steps.length - 1 ? endTour() : go(idx + 1)))
-  row.append(count, skip, prev, next)
-  pop.append(h, body, row)
+function go(i: number): void {
+  const next = Math.max(0, Math.min(i, steps().length - 1))
+  if (next === idx()) return
+  setIdx(next)
+  steps()[next]?.onEnter?.()
   position()
 }
 
-function go(i: number): void {
-  const next = Math.max(0, Math.min(i, steps.length - 1))
-  if (next === idx) return
-  idx = next
-  steps[idx]?.onEnter?.()
-  render()
-}
+const isLast = (): boolean => idx() === steps().length - 1
 
 function onKey(ev: KeyboardEvent): void {
   if (ev.key === 'Escape') {
@@ -102,16 +79,45 @@ function onKey(ev: KeyboardEvent): void {
   } else if (ev.key === 'ArrowRight' || ev.key === 'Enter') {
     ev.preventDefault()
     ev.stopPropagation()
-    if (idx === steps.length - 1) endTour()
-    else go(idx + 1)
+    if (isLast()) endTour()
+    else go(idx() + 1)
   } else if (ev.key === 'ArrowLeft') {
     ev.preventDefault()
     ev.stopPropagation()
-    go(idx - 1)
+    go(idx() - 1)
   } else if (ev.key.length === 1) {
     // que escribir bajo el velo no dispare el buscador
     ev.stopPropagation()
   }
+}
+
+function TourOverlay(): JSX.Element {
+  const step = (): TourStep | undefined => steps()[idx()]
+  return (
+    <>
+      <div class="spot" ref={spot} />
+      <div class="pop" ref={pop}>
+        <h3>{step()?.title ?? ''}</h3>
+        <p>{step()?.body ?? ''}</p>
+        <div class="actions">
+          <span class="count">{t('tourCount', idx() + 1, steps().length)}</span>
+          {/* on:click nativo: el root del tour corta la propagación para que
+              nada atraviese el velo, y eso mataría los onClick delegados */}
+          <button type="button" on:click={() => endTour()}>
+            {t('tourSkip')}
+          </button>
+          <Show when={idx() > 0}>
+            <button type="button" on:click={() => go(idx() - 1)}>
+              {t('tourPrev')}
+            </button>
+          </Show>
+          <button type="button" class="primary" on:click={() => (isLast() ? endTour() : go(idx() + 1))}>
+            {isLast() ? (step()?.cta ?? t('tourNext')) : t('tourNext')}
+          </button>
+        </div>
+      </div>
+    </>
+  )
 }
 
 export function endTour(): void {
@@ -119,10 +125,12 @@ export function endTour(): void {
   document.removeEventListener('keydown', onKey, true)
   removeEventListener('resize', position)
   clearInterval(repositionTimer)
+  dispose?.()
+  dispose = undefined
   root.remove()
   root = null
-  spot = null
-  pop = null
+  spot = undefined
+  pop = undefined
   const done = onEnd
   onEnd = null
   done?.()
@@ -130,23 +138,19 @@ export function endTour(): void {
 
 export function startTour(list: TourStep[], done: () => void): void {
   if (root || !list.length) return
-  steps = list
-  idx = 0
+  setSteps(list)
+  setIdx(0)
   onEnd = done
   root = document.createElement('div')
   root.id = 'tour'
   root.addEventListener('click', ev => ev.stopPropagation())
-  spot = document.createElement('div')
-  spot.className = 'spot'
-  pop = document.createElement('div')
-  pop.className = 'pop'
-  root.append(spot, pop)
   document.body.appendChild(root)
+  dispose = render(() => <TourOverlay />, root)
   // captura: el tour se queda los atajos mientras está abierto
   document.addEventListener('keydown', onKey, true)
   // los nodos del grafo derivan con la física: reubicar el foco periódicamente
-  repositionTimer = setInterval(position, 400)
+  repositionTimer = setInterval(position, REPOSITION_MS)
   addEventListener('resize', position)
-  steps[0]?.onEnter?.()
-  render()
+  list[0]?.onEnter?.()
+  position()
 }

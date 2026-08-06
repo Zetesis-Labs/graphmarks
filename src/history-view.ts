@@ -349,14 +349,14 @@ export async function setHistoryUnsavedOnly(on: boolean): Promise<void> {
 }
 
 export async function muteHistoryDomain(domain: string): Promise<void> {
-  S.historyMuted.add(domain)
+  S.historyMuted = new Set([...S.historyMuted, domain])
   await saveStore('historyMuted', [...S.historyMuted])
   toast(t('toastDomainMuted', domain))
   await app.rebuild(false)
 }
 
 async function unmuteHistoryDomain(domain: string): Promise<void> {
-  S.historyMuted.delete(domain)
+  S.historyMuted = new Set([...S.historyMuted].filter(d => d !== domain))
   await saveStore('historyMuted', [...S.historyMuted])
   await app.rebuild(false)
 }

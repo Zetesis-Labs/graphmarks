@@ -6,13 +6,13 @@ import { t } from './i18n'
 import { nodeMenu } from './interactions'
 import { loadStore, saveStore } from './lib/storage'
 import { type Rect, unionRects } from './lib/tour-place'
-import { buildViews } from './panels'
+import { changedKeys, NEUTRAL_SCENE, resolveScene, type TourScene } from './lib/tour-scene'
+import { refreshPanels, setActiveView } from './panels'
 import { S } from './state'
 import type { GraphNode, TagsMap, ViewMode } from './types'
 import { canvas, listPanel, menuEl, resultsEl, searchBox, sessionsEl, tabcountEl, viewsEl } from './ui/dom'
 import { hideMenu, showMenu } from './ui/menu'
 import { isTourOpen, startTour, type TourStep } from './ui/tour'
-import { strategies } from './view-strategy'
 
 /**
  * Guía del primer uso: un modo demo sobre el grafo de muestra (window.MOCK_TREE)
@@ -32,39 +32,30 @@ async function enterDemo(): Promise<void> {
   saved = { viewMode: S.viewMode, onlyOpen: S.onlyOpen, tagsMap: S.tagsMap }
   S.demo = true
   S.onlyOpen = false
-  S.viewMode = 'folders'
-  S.strategy = strategies.folders
-  S.activeSubgraph = null
+  setActiveView('folders')
   S.tagsMap = { ...(window.SEED_TAGS ?? {}) }
+  scene = NEUTRAL_SCENE
+  sceneGen += 1
   invalidateHistoryGraph()
-  buildViews()
+  refreshPanels()
   await app.rebuild(true)
 }
 
 async function exitDemo(): Promise<void> {
   if (!saved) return
   S.demo = false
-  S.viewMode = saved.viewMode
-  S.strategy = strategies[saved.viewMode]
+  setActiveView(saved.viewMode)
   S.onlyOpen = saved.onlyOpen
   S.tagsMap = saved.tagsMap
   saved = null
+  scene = NEUTRAL_SCENE
+  sceneGen += 1
+  listPanel.hidden = true
   hideMenu()
   app.clearSearch()
   invalidateHistoryGraph()
-  buildViews()
+  refreshPanels()
   await app.rebuild(true)
-}
-
-/** Cambio de vista sin persistir la preferencia del usuario. */
-async function switchView(mode: ViewMode): Promise<void> {
-  if (S.viewMode === mode) return
-  S.viewMode = mode
-  S.strategy = strategies[mode]
-  S.activeSubgraph = null
-  buildViews()
-  await app.rebuild(false)
-  app.zoomToNodes(S.nodes, 80)
 }
 
 function elRect(el: HTMLElement): Rect | null {
@@ -95,113 +86,137 @@ function firstOpenNode(): GraphNode | null {
   return id ? (S.byId.get(id) ?? null) : null
 }
 
+/* --- aplicador de escenas ---
+   Cada paso declara su escena completa y esto reconcilia contra la vigente,
+   tocando solo lo que cambia. Una generación descarta los efectos diferidos
+   de una escena que ya quedó atrás (clics rápidos en atrás/siguiente). */
+
+let scene: TourScene = NEUTRAL_SCENE
+let sceneGen = 0
+
+const MENU_SETTLE_MS = 700
+
+function focusCamera(target: TourScene['focus']): void {
+  if (target === 'hub') {
+    const hub = biggestHub()
+    if (hub) app.zoomToNodes(members(hub), 120)
+    return
+  }
+  if (target === 'firstOpen') {
+    const n = firstOpenNode()
+    if (n) app.zoomToNodes([n], 220)
+    return
+  }
+  app.zoomToNodes(S.nodes, 80)
+}
+
+async function applyScene(next: TourScene): Promise<void> {
+  const gen = ++sceneGen
+  const changed = changedKeys(scene, next)
+  scene = next
+  if (!changed.size) return
+
+  // el menú pertenece a un único paso: fuera antes de tocar nada más
+  hideMenu()
+
+  if (changed.has('search')) {
+    if (next.search) {
+      searchBox.value = next.search
+      app.applySearch(next.search)
+    } else app.clearSearch()
+  }
+
+  if (changed.has('view')) setActiveView(next.view)
+  if (changed.has('onlyOpen')) S.onlyOpen = next.onlyOpen
+
+  const rebuilt = changed.has('view') || changed.has('onlyOpen')
+  if (rebuilt) await app.rebuild(false)
+  if (gen !== sceneGen) return
+
+  listPanel.hidden = !next.listOpen
+  if (rebuilt || changed.has('focus') || changed.has('search')) focusCamera(next.focus)
+
+  if (next.menuOnHub) {
+    // dejar que el encuadre asiente antes de abrir el menú sobre el nodo
+    setTimeout(() => {
+      if (gen !== sceneGen || !isTourOpen() || !scene.menuOnHub) return
+      const hub = biggestHub()
+      const r = rectOfNode(hub)
+      if (hub && r) showMenu(r.x + r.w + 4, r.y, nodeMenu(hub))
+    }, MENU_SETTLE_MS)
+  }
+}
+
+interface SceneStep {
+  titleKey: Parameters<typeof t>[0]
+  bodyKey: Parameters<typeof t>[0]
+  scene?: Partial<TourScene>
+  target?: () => Rect | null
+  ctaKey?: Parameters<typeof t>[0]
+}
+
+/** Los pasos son datos: título, cuerpo, a qué apuntan y qué escena piden. */
+const SCENE_STEPS: SceneStep[] = [
+  { titleKey: 'tourWelcomeTitle', bodyKey: 'tourWelcomeBody' },
+  {
+    titleKey: 'tourClustersTitle',
+    bodyKey: 'tourClustersBody',
+    scene: { focus: 'hub' },
+    target: () => rectOfNode(biggestHub())
+  },
+  {
+    titleKey: 'tourSearchTitle',
+    bodyKey: 'tourSearchBody',
+    scene: { search: 'docs' },
+    // el foco abraza también el desplegable de resultados; el popover lo esquiva
+    target: () => unionRects(elRect(searchBox), resultsEl.hidden ? null : elRect(resultsEl))
+  },
+  { titleKey: 'tourTagsTitle', bodyKey: 'tourTagsBody', scene: { view: 'tags' }, target: () => elRect(viewsEl) },
+  {
+    titleKey: 'tourDomainsTitle',
+    bodyKey: 'tourDomainsBody',
+    scene: { view: 'domains' },
+    target: () => elRect(viewsEl)
+  },
+  {
+    titleKey: 'tourHistoryTitle',
+    bodyKey: 'tourHistoryBody',
+    scene: { view: 'history' },
+    target: () => elRect(viewsEl)
+  },
+  {
+    titleKey: 'tourMenuTitle',
+    bodyKey: 'tourMenuBody',
+    scene: { menuOnHub: true },
+    // el menú abierto forma parte del objetivo: el popover no se le pone encima
+    target: () => unionRects(rectOfNode(biggestHub()), menuEl.hidden ? null : elRect(menuEl))
+  },
+  {
+    titleKey: 'tourOpenTabsTitle',
+    bodyKey: 'tourOpenTabsBody',
+    scene: { focus: 'firstOpen' },
+    target: () => rectOfNode(firstOpenNode())
+  },
+  {
+    titleKey: 'tourOnlyOpenTitle',
+    bodyKey: 'tourOnlyOpenBody',
+    scene: { onlyOpen: true },
+    target: () => elRect(tabcountEl)
+  },
+  { titleKey: 'tourListTitle', bodyKey: 'tourListBody', scene: { listOpen: true }, target: () => elRect(listPanel) },
+  { titleKey: 'tourSessionsTitle', bodyKey: 'tourSessionsBody', target: () => elRect(sessionsEl) },
+  { titleKey: 'tourPrivacyTitle', bodyKey: 'tourPrivacyBody' },
+  { titleKey: 'tourGesturesTitle', bodyKey: 'tourGesturesBody', ctaKey: 'tourStart' }
+]
+
 function tourSteps(): TourStep[] {
-  return [
-    { title: t('tourWelcomeTitle'), body: t('tourWelcomeBody') },
-    {
-      title: t('tourClustersTitle'),
-      body: t('tourClustersBody'),
-      target: () => rectOfNode(biggestHub()),
-      onEnter: () => {
-        const hub = biggestHub()
-        if (hub) app.zoomToNodes(members(hub), 120)
-      }
-    },
-    {
-      title: t('tourSearchTitle'),
-      body: t('tourSearchBody'),
-      // el foco abraza también el desplegable de resultados; el popover lo esquiva
-      target: () => unionRects(elRect(searchBox), resultsEl.hidden ? null : elRect(resultsEl)),
-      onEnter: () => {
-        app.zoomToNodes(S.nodes, 80)
-        searchBox.value = 'docs'
-        app.applySearch('docs')
-      }
-    },
-    {
-      title: t('tourTagsTitle'),
-      body: t('tourTagsBody'),
-      target: () => elRect(viewsEl),
-      onEnter: () => {
-        app.clearSearch()
-        void switchView('tags')
-      }
-    },
-    {
-      title: t('tourDomainsTitle'),
-      body: t('tourDomainsBody'),
-      target: () => elRect(viewsEl),
-      onEnter: () => void switchView('domains')
-    },
-    {
-      title: t('tourHistoryTitle'),
-      body: t('tourHistoryBody'),
-      target: () => elRect(viewsEl),
-      onEnter: () => void switchView('history')
-    },
-    {
-      title: t('tourMenuTitle'),
-      body: t('tourMenuBody'),
-      // el menú abierto forma parte del objetivo: el popover no se le pone encima
-      target: () => unionRects(rectOfNode(biggestHub()), menuEl.hidden ? null : elRect(menuEl)),
-      onEnter: () => {
-        void switchView('folders').then(() => {
-          // dejar que el encuadre asiente antes de abrir el menú sobre el nodo
-          setTimeout(() => {
-            if (!isTourOpen()) return
-            const hub = biggestHub()
-            const r = rectOfNode(hub)
-            if (hub && r) showMenu(r.x + r.w + 4, r.y, nodeMenu(hub))
-          }, 700)
-        })
-      }
-    },
-    {
-      title: t('tourOpenTabsTitle'),
-      body: t('tourOpenTabsBody'),
-      target: () => rectOfNode(firstOpenNode()),
-      onEnter: () => {
-        hideMenu()
-        const n = firstOpenNode()
-        if (n) app.zoomToNodes([n], 220)
-      }
-    },
-    {
-      title: t('tourOnlyOpenTitle'),
-      body: t('tourOnlyOpenBody'),
-      target: () => elRect(tabcountEl),
-      onEnter: () => {
-        void (async () => {
-          S.onlyOpen = true
-          await app.rebuild(false)
-          app.zoomToNodes(S.nodes, 80)
-        })()
-      }
-    },
-    {
-      title: t('tourListTitle'),
-      body: t('tourListBody'),
-      target: () => elRect(listPanel),
-      onEnter: () => {
-        void (async () => {
-          S.onlyOpen = false
-          await app.rebuild(false)
-          app.zoomToNodes(S.nodes, 80)
-          listPanel.hidden = false
-        })()
-      }
-    },
-    {
-      title: t('tourSessionsTitle'),
-      body: t('tourSessionsBody'),
-      target: () => elRect(sessionsEl),
-      onEnter: () => {
-        listPanel.hidden = true
-      }
-    },
-    { title: t('tourPrivacyTitle'), body: t('tourPrivacyBody') },
-    { title: t('tourGesturesTitle'), body: t('tourGesturesBody'), cta: t('tourStart') }
-  ]
+  return SCENE_STEPS.map(step => ({
+    title: t(step.titleKey),
+    body: t(step.bodyKey),
+    ...(step.target ? { target: step.target } : {}),
+    ...(step.ctaKey ? { cta: t(step.ctaKey) } : {}),
+    onEnter: () => void applyScene(resolveScene(step.scene))
+  }))
 }
 
 export function startOnboarding(): void {

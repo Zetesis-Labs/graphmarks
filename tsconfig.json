@@ -14,8 +14,11 @@
     "skipLibCheck": true,
     "noEmit": true,
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["chrome"]
+    "types": ["chrome"],
+    /* El JSX lo compila babel-preset-solid dentro del build, no tsc. */
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js"
   },
-  "include": ["src/**/*.ts", "scripts/**/*.mjs"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.mjs"],
   "exclude": ["dist", "node_modules"]
 }

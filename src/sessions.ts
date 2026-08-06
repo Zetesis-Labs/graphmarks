@@ -1,3 +1,4 @@
+import { createEffect, createRoot } from 'solid-js'
 import { activePort } from './browser-port'
 import { IS_EXT } from './env'
 import { t } from './i18n'
@@ -32,7 +33,8 @@ export async function persistSessions(): Promise<void> {
   }
 }
 
-export function updateSessionsChip(): void {
+/** El chip se pinta solo: efecto sobre S.savedSessions (reactivo). */
+function renderSessionsChip(): void {
   sessionsEl.textContent = S.savedSessions.length ? t('sessionsChipCount', S.savedSessions.length) : t('sessionsChip')
 }
 
@@ -170,7 +172,7 @@ export async function restoreSession(s: SavedSession): Promise<void> {
 
 /* --- UI --- */
 
-async function promptSaveSession(): Promise<void> {
+export async function promptSaveSession(): Promise<void> {
   await ensureTabGroups() // pedirlo aquí: estamos dentro de un gesto de clic
   const winOpts = [{ value: 'all', label: t('winMenuAll') }]
   S.winList.forEach((w, i) => {
@@ -198,9 +200,8 @@ async function promptSaveSession(): Promise<void> {
           toast(t('toastNoTabsToSave'))
           return
         }
-        S.savedSessions.push(s)
+        S.savedSessions = [...S.savedSessions, s]
         await persistSessions()
-        updateSessionsChip()
 
         const nGroups = s.windows.reduce((a, w) => a + w.groups.length, 0)
         const nSplits = countSplits(s)
@@ -288,7 +289,6 @@ function deleteSessionMenu(anchor: DOMRect): void {
         void (async () => {
           S.savedSessions = S.savedSessions.filter(x => x.id !== s.id)
           await persistSessions()
-          updateSessionsChip()
           toast(t('toastSessionDeleted', short(s.name)))
         })()
       }
@@ -297,6 +297,8 @@ function deleteSessionMenu(anchor: DOMRect): void {
 }
 
 export function initSessionsUi(): void {
+  // raíz sin dispose: el chip vive lo que la página
+  createRoot(() => createEffect(renderSessionsChip))
   sessionsEl.addEventListener('click', ev => {
     ev.stopPropagation() // que el clic no llegue al cierre global del menú
     const r = sessionsEl.getBoundingClientRect()
@@ -324,5 +326,4 @@ export function initSessionsUi(): void {
 
 export async function loadSessions(): Promise<void> {
   S.savedSessions = await loadChunked<SavedSession[]>('sessions', [], S.settings.syncEnabled)
-  updateSessionsChip()
 }

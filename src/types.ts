@@ -1,4 +1,5 @@
 import type { SimulationNodeDatum } from 'd3-force'
+import type { Component } from 'solid-js'
 
 export type ViewMode = 'folders' | 'tags' | 'domains' | 'history'
 
@@ -119,8 +120,8 @@ export type WinFilter = 'all' | 'current' | number
  * condicionales `viewMode === '...'` por todo el código.
  */
 export interface ViewStrategy {
-  /** Construye nodos, links y clusters a partir del árbol de marcadores. */
-  build(tree: RawBookmarkNode[]): void
+  /** Construye nodos, links y clusters; false = la vista no pudo construirse. */
+  build(tree: RawBookmarkNode[]): boolean | Promise<boolean>
   /** Maneja el soltado de un nodo sobre un destino. */
   handleDrop(subject: GraphNode, target: GraphNode): void
   /** ¿Es `n` un destino válido de drop en esta vista? */
@@ -129,8 +130,12 @@ export interface ViewStrategy {
   hubMenu?(n: GraphNode): MenuItem[] | undefined
   /** Color propio de un marcador según la semántica de la vista. undefined = default. */
   bmColor?(n: GraphNode): string | undefined
-  /** Elementos extra para la leyenda de la cabecera. */
-  legendItems?(): HTMLElement[]
+  /**
+   * Componentes extra para la leyenda de la cabecera. Devuelve componentes y no
+   * DOM para que la vista pueda expresar carga diferida y estado sin mutar
+   * nodos a posteriori; `panels` los monta bajo una raíz de Solid.
+   */
+  legendItems?(): Component[]
   /** ¿Soporta nodos fantasma (pestañas sueltas)? */
   supportsGhosts: boolean
   /** ¿Se aplica la presentación de carpetas (subgrafos, colapsadas)? */

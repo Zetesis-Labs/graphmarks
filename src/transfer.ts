@@ -1,7 +1,8 @@
 import { app } from './bus'
 import { t } from './i18n'
+import { mergeImport, parseImportPayload } from './lib/import-merge'
 import { saveStore } from './lib/storage'
-import { persistSessions, updateSessionsChip } from './sessions'
+import { persistSessions } from './sessions'
 import { S } from './state'
 import { persistTags } from './tags'
 import type { ExportPayload } from './types'
@@ -30,35 +31,34 @@ export function exportData(): void {
 }
 
 async function applyImport(data: ExportPayload): Promise<void> {
-  if (data.tags) {
-    S.tagsMap = { ...S.tagsMap, ...data.tags }
+  const patch = mergeImport({ tagsMap: S.tagsMap, folderPrefs: S.folderPrefs, savedSessions: S.savedSessions }, data)
+  if (patch.tagsMap) {
+    S.tagsMap = patch.tagsMap
     await persistTags()
   }
-  if (data.layout) {
-    S.pinned = data.layout
+  if (patch.pinned) {
+    S.pinned = patch.pinned
     await saveStore('layout', S.pinned)
   }
-  if (data.folderPrefs) {
-    S.folderPrefs = { ...S.folderPrefs, ...data.folderPrefs }
+  if (patch.folderPrefs) {
+    S.folderPrefs = patch.folderPrefs
     await saveStore('folderPrefs', S.folderPrefs)
   }
-  if (data.historyRange) {
-    S.historyRange = data.historyRange
+  if (patch.historyRange) {
+    S.historyRange = patch.historyRange
     await saveStore('historyRange', S.historyRange)
   }
-  if (data.historyGrouping) {
-    S.historyGrouping = data.historyGrouping
+  if (patch.historyGrouping) {
+    S.historyGrouping = patch.historyGrouping
     await saveStore('historyGrouping', S.historyGrouping)
   }
-  if (Array.isArray(data.historyMuted)) {
-    S.historyMuted = new Set(data.historyMuted)
-    await saveStore('historyMuted', [...S.historyMuted])
+  if (patch.historyMuted) {
+    S.historyMuted = new Set(patch.historyMuted)
+    await saveStore('historyMuted', patch.historyMuted)
   }
-  if (Array.isArray(data.sessions)) {
-    const known = new Set(S.savedSessions.map(s => s.id))
-    S.savedSessions.push(...data.sessions.filter(s => !known.has(s.id)))
+  if (patch.savedSessions) {
+    S.savedSessions = patch.savedSessions
     await persistSessions()
-    updateSessionsChip()
   }
 }
 
@@ -71,7 +71,12 @@ export function importData(): void {
       const f = inp.files?.[0]
       if (!f) return
       try {
-        await applyImport(JSON.parse(await f.text()) as ExportPayload)
+        const payload = parseImportPayload(JSON.parse(await f.text()))
+        if (!payload) {
+          toast(t('toastImportInvalid'))
+          return
+        }
+        await applyImport(payload)
         toast(t('toastImported'))
         app.rebuildSoon()
       } catch (e) {

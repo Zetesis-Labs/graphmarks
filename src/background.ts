@@ -1,7 +1,7 @@
 /* Service worker: omnibox «gm» para saltar a marcadores y pestañas, y el
    comportamiento del botón de la barra. */
 
-import { focusOrOpenGraph } from './graph-tab'
+import { focusOrOpenGraph, focusTab } from './graph-tab'
 import { type AppSettings, normalizeSettings, resolveActionMode, SETTINGS_DEFAULTS } from './lib/settings-shape'
 
 const esc = (s: string): string =>
@@ -46,8 +46,7 @@ chrome.omnibox.onInputEntered.addListener((text, disposition) => {
     const base = url.replace(/\/$/, '')
     const open = tabs.find(t => t.url === url || t.url === base || (t.url ?? '').startsWith(`${base}/`))
     if (open?.id !== undefined) {
-      await chrome.tabs.update(open.id, { active: true })
-      if (open.windowId !== undefined) await chrome.windows.update(open.windowId, { focused: true })
+      await focusTab(open.id, open.windowId)
       return
     }
     if (disposition === 'currentTab') void chrome.tabs.update({ url })
