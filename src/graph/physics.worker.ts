@@ -37,7 +37,16 @@ export interface StopMessage {
   type: 'stop'
 }
 
-export type IncomingWorkerMessage = InitMessage | AlphaMessage | TickMessage | StopMessage
+export interface UpdateNodeMessage {
+  type: 'updateNode'
+  id: string
+  x?: number
+  y?: number
+  fx?: number | null
+  fy?: number | null
+}
+
+export type IncomingWorkerMessage = InitMessage | AlphaMessage | TickMessage | StopMessage | UpdateNodeMessage
 
 function linkDistance(l: WorkerLinkData, nodeMap: Map<string, WorkerNodeData>): number {
   if (l.type === 'host') return 130
@@ -76,51 +85,74 @@ function postPositions(): void {
   self.postMessage({ type: 'positions', positions })
 }
 
+function handleInit(data: InitMessage): void {
+  simulation?.stop()
+  currentNodes = data.nodes.map(n => ({ ...n }))
+  nodeMap = new Map(currentNodes.map(n => [n.id, n]))
+
+  const links = data.links.map(l => ({ ...l }))
+
+  simulation = forceSimulation<WorkerNodeData>(currentNodes)
+    .force(
+      'link',
+      forceLink<WorkerNodeData, WorkerLinkData>(links)
+        .id(d => d.id)
+        .distance(l => linkDistance(l, nodeMap))
+        .strength(l => {
+          const isFolder = nodeMap.get(l.target)?.type === 'folder'
+          return l.type === 'host' ? 0.04 : l.type === 'history' ? 0.12 : isFolder ? 0.55 : 0.45
+        })
+    )
+    .force('charge', forceManyBody<WorkerNodeData>().strength(chargeOf))
+    .force(
+      'collide',
+      forceCollide<WorkerNodeData>(d => radiusOf(d) + 4)
+    )
+    .force('x', forceX<WorkerNodeData>().strength(0.035))
+    .force('y', forceY<WorkerNodeData>().strength(0.045))
+    .velocityDecay(0.3)
+    .alphaDecay(0.02)
+    .alpha(data.alpha ?? 0.3)
+    .on('tick', () => {
+      postPositions()
+    })
+}
+
+function handleUpdateNode(data: UpdateNodeMessage): void {
+  const n = nodeMap.get(data.id)
+  if (n) {
+    if (typeof data.x === 'number') n.x = data.x
+    if (typeof data.y === 'number') n.y = data.y
+    if (data.fx !== undefined) n.fx = data.fx
+    if (data.fy !== undefined) n.fy = data.fy
+  }
+  if (simulation && simulation.alpha() < 0.1) {
+    simulation.alpha(0.25).restart()
+  }
+}
+
 self.onmessage = (e: MessageEvent<IncomingWorkerMessage>) => {
   const data = e.data
   if (!data) return
 
-  if (data.type === 'init') {
-    simulation?.stop()
-    currentNodes = data.nodes.map(n => ({ ...n }))
-    nodeMap = new Map(currentNodes.map(n => [n.id, n]))
-
-    const links = data.links.map(l => ({ ...l }))
-
-    simulation = forceSimulation<WorkerNodeData>(currentNodes)
-      .force(
-        'link',
-        forceLink<WorkerNodeData, WorkerLinkData>(links)
-          .id(d => d.id)
-          .distance(l => linkDistance(l, nodeMap))
-          .strength(l => {
-            const isFolder = nodeMap.get(l.target)?.type === 'folder'
-            return l.type === 'host' ? 0.04 : l.type === 'history' ? 0.12 : isFolder ? 0.55 : 0.45
-          })
-      )
-      .force('charge', forceManyBody<WorkerNodeData>().strength(chargeOf))
-      .force(
-        'collide',
-        forceCollide<WorkerNodeData>(d => radiusOf(d) + 4)
-      )
-      .force('x', forceX<WorkerNodeData>().strength(0.035))
-      .force('y', forceY<WorkerNodeData>().strength(0.045))
-      .velocityDecay(0.3)
-      .alphaDecay(0.02)
-      .alpha(data.alpha ?? 0.3)
-      .on('tick', () => {
+  switch (data.type) {
+    case 'init':
+      handleInit(data)
+      break
+    case 'alpha':
+      if (simulation) simulation.alpha(data.alpha).restart()
+      break
+    case 'tick':
+      if (simulation) {
+        simulation.tick(data.count)
         postPositions()
-      })
-  } else if (data.type === 'alpha') {
-    if (simulation) {
-      simulation.alpha(data.alpha).restart()
-    }
-  } else if (data.type === 'tick') {
-    if (simulation) {
-      simulation.tick(data.count)
-      postPositions()
-    }
-  } else if (data.type === 'stop') {
-    simulation?.stop()
+      }
+      break
+    case 'updateNode':
+      handleUpdateNode(data)
+      break
+    case 'stop':
+      simulation?.stop()
+      break
   }
 }

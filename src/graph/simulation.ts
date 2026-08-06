@@ -3,6 +3,7 @@ import { app } from '../bus'
 import { invalidateGraphGeometry } from '../render'
 import { S } from '../state'
 import type { GraphLink, GraphNode } from '../types'
+import { resolveLinkReferences } from './build'
 import type { IncomingWorkerMessage, WorkerLinkData, WorkerNodeData } from './physics.worker'
 import { radius } from './style'
 
@@ -56,7 +57,22 @@ function getWorker(): Worker | null {
   return worker
 }
 
+export function updateNodePosition(id: string, x?: number, y?: number, fx?: number | null, fy?: number | null): void {
+  const node = S.byId.get(id)
+  if (node) {
+    if (x !== undefined) node.x = x
+    if (y !== undefined) node.y = y
+    if (fx !== undefined) node.fx = fx
+    if (fy !== undefined) node.fy = fy
+  }
+  const w = getWorker()
+  if (w) {
+    w.postMessage({ type: 'updateNode', id, x, y, fx, fy })
+  }
+}
+
 export function startSimulation(alpha: number): void {
+  resolveLinkReferences()
   const w = getWorker()
   if (w) {
     simulation?.stop()
