@@ -1,7 +1,6 @@
 import { BACK_R, MAX_SATS, PLUS_R, SAT_R } from '../constants'
 import { S } from '../state'
 import type { GraphNode, HitResult, TabInfo } from '../types'
-import { simulation } from './simulation'
 import { radius } from './style'
 
 export interface SatellitePoint {
@@ -40,10 +39,20 @@ export function backPosition(n: GraphNode): { x: number; y: number } {
 
 export function findAt(px: number, py: number): GraphNode | null {
   const [x, y] = S.tf.invert([px, py])
-  const n = simulation?.find(x, y, 30 / S.tf.k)
-  if (!n) return null
-  const d = Math.hypot((n.x ?? 0) - x, (n.y ?? 0) - y)
-  return d <= radius(n) + 7 / S.tf.k ? n : null
+  let best: GraphNode | null = null
+  let bestDist = Infinity
+
+  for (const n of S.nodes) {
+    if (typeof n.x !== 'number' || typeof n.y !== 'number') continue
+    const d = Math.hypot(n.x - x, n.y - y)
+    const maxR = radius(n) + 7 / S.tf.k
+    if (d <= maxR && d < bestDist) {
+      best = n
+      bestDist = d
+    }
+  }
+
+  return best
 }
 
 /** Nodo o elemento auxiliar (satélite de pestaña / botón «+») bajo el puntero. */
