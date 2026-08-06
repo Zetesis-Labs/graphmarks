@@ -5,6 +5,8 @@ import { menuEl } from './dom'
 
 const [items, setItems] = createSignal<MenuItem[]>([])
 
+let justOpenedTime = 0
+
 export function hideMenu(): void {
   menuEl.hidden = true
 }
@@ -33,6 +35,7 @@ function Menu(): JSX.Element {
 export function showMenu(x: number, y: number, list: MenuItem[]): void {
   setItems(list)
   menuEl.hidden = false
+  justOpenedTime = performance.now()
   // colocar exige medir después de pintar: es trabajo post-layout, no reactivo
   const r = menuEl.getBoundingClientRect()
   menuEl.style.left = `${Math.min(x, innerWidth - r.width - 8)}px`
@@ -42,6 +45,7 @@ export function showMenu(x: number, y: number, list: MenuItem[]): void {
 export function installMenuDismiss(): void {
   render(() => <Menu />, menuEl)
   document.addEventListener('click', ev => {
+    if (performance.now() - justOpenedTime < 50) return
     if (!menuEl.contains(ev.target as Node)) hideMenu()
   })
   document.addEventListener('keydown', ev => {
