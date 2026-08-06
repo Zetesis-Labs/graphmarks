@@ -37,7 +37,8 @@ type DragEv = D3DragEvent<HTMLCanvasElement, unknown, GraphNode>
 
 export const drag = d3drag<HTMLCanvasElement, unknown>()
   .subject(ev => {
-    const h = findHit(ev.x, ev.y)
+    const [px, py] = pointer(ev.sourceEvent ?? ev, canvas)
+    const h = findHit(px, py)
     return h.aux ? null : h.node
   })
   .on('start', (ev: DragEv) => {
