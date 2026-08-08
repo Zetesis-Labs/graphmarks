@@ -8,10 +8,16 @@ import type {
   TagsMap
 } from '../types'
 
-/** Payload de exportación válido, o null si el JSON no es de graphmarks. */
+/**
+ * Marcas aceptadas en el campo `app`. `graphmarks` es el nombre anterior al
+ * renombrado: se sigue leyendo para no invalidar las exportaciones ya guardadas.
+ */
+const APP_IDS: readonly string[] = ['graphacker', 'graphmarks']
+
+/** Payload de exportación válido, o null si el JSON no es de Graphacker. */
 export function parseImportPayload(raw: unknown): ExportPayload | null {
   const o = raw as ExportPayload | null
-  return o && typeof o === 'object' && o.app === 'graphmarks' && typeof o.version === 'number' ? o : null
+  return o && typeof o === 'object' && APP_IDS.includes(o.app) && typeof o.version === 'number' ? o : null
 }
 
 export interface ImportPatch {

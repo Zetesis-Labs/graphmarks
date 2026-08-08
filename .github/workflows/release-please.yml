@@ -50,16 +50,16 @@ jobs:
 
       - name: Empaquetar extensión (Chrome y Firefox)
         run: |
-          zip -r graphmarks-${TAG}.zip \
+          zip -r graphacker-${TAG}.zip \
             manifest.json newtab.html newtab.css \
             dist/newtab.js dist/background.js \
             _locales mock-data.js seed-tags.js icons LICENSE
-          (cd firefox && zip -r ../graphmarks-firefox-${TAG}.zip .)
+          (cd firefox && zip -r ../graphacker-firefox-${TAG}.zip .)
 
       - name: Adjuntar los zips a la release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" graphmarks-${TAG}.zip graphmarks-firefox-${TAG}.zip --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" graphacker-${TAG}.zip graphacker-firefox-${TAG}.zip --repo "$GITHUB_REPOSITORY"
 
       # Publicación en la Chrome Web Store: solo si los secretos están puestos.
       - name: ¿Hay credenciales de la Web Store?
@@ -89,7 +89,7 @@ jobs:
           echo "Subiendo el paquete…"
           curl -sf -X PUT \
             -H "Authorization: Bearer $TOKEN" -H "x-goog-api-version: 2" \
-            -T graphmarks-${TAG}.zip \
+            -T graphacker-${TAG}.zip \
             "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXT_ID" | tee upload.json
           python3 -c 'import json;d=json.load(open("upload.json"));st=d.get("uploadState");print("estado:",st);raise SystemExit(0 if st in ("SUCCESS","IN_PROGRESS") else 1)'
 

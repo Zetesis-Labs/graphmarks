@@ -8,7 +8,7 @@ pregunta viene en este orden: **Store listing → Privacy → Payments → Submi
 **Nombre** (máx. 75)
 
 ```
-GraphMarks — Marcadores en grafo
+Graphacker — Marcadores en grafo
 ```
 
 **Descripción breve / summary** (máx. 132)
@@ -22,13 +22,13 @@ Tu nueva pestaña como un grafo interactivo de marcadores: carpetas, etiquetas y
 **Descripción detallada**
 
 ```
-GraphMarks convierte la página de nueva pestaña en un mapa vivo de tus marcadores.
+Graphacker convierte la página de nueva pestaña en un mapa vivo de tus marcadores.
 
 En vez de una lista, ves un grafo: las carpetas son centros cuyo tamaño refleja cuántos marcadores contienen, los marcadores orbitan a su alrededor con su favicon, y los enlaces débiles entre sitios del mismo dominio tienden puentes entre áreas relacionadas.
 
 TRES TOPOLOGÍAS
 • Carpetas — tu jerarquía real de marcadores.
-• Etiquetas — GraphMarks añade etiquetas (Chrome no las tiene); un marcador con varias cuelga de varios centros a la vez, algo que las carpetas no pueden expresar.
+• Etiquetas — Graphacker añade etiquetas (Chrome no las tiene); un marcador con varias cuelga de varios centros a la vez, algo que las carpetas no pueden expresar.
 • Dominios — agrupación automática por sitio.
 
 TUS PESTAÑAS, SOBRE EL MAPA
@@ -44,15 +44,15 @@ BUSCADOR
 Empieza a escribir y aparece la paleta de búsqueda: navega los resultados con las flechas viendo dónde cae cada uno en el grafo. También desde la barra de direcciones escribiendo "gm" y un espacio.
 
 PRIVACIDAD
-Todo ocurre en tu navegador. GraphMarks no tiene servidores, no envía datos a ninguna parte y no hace ninguna petición de red. Tus etiquetas y sesiones viajan entre tus equipos usando la sincronización de Chrome de tu propia cuenta de Google.
+Todo ocurre en tu navegador. Graphacker no tiene servidores, no envía datos a ninguna parte y no hace ninguna petición de red. Tus etiquetas y sesiones viajan entre tus equipos usando la sincronización de Chrome de tu propia cuenta de Google.
 
-Código abierto (MIT): https://github.com/Zetesis-Labs/graphmarks
+Código abierto (MIT): https://github.com/Zetesis-Labs/graphacker
 ```
 
 **Capturas**: `store/screenshots/*.png` (1280×800, el tamaño que pide la Store).
 Sube al menos `folders.png` y `tags.png`; las cuatro cuentan mejor la historia.
 
-**URL del sitio / soporte**: `https://github.com/Zetesis-Labs/graphmarks`
+**URL del sitio / soporte**: `https://github.com/Zetesis-Labs/graphacker`
 
 ## Privacy practices
 

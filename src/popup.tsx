@@ -207,7 +207,7 @@ function Popup(): JSX.Element {
   return (
     <>
       <header>
-        <span id="brand">GraphMarks</span>
+        <span id="brand">Graphacker</span>
         <button type="button" onClick={() => void openGraph()}>
           {t('popupOpenGraph')}
         </button>
