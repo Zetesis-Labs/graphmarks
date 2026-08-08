@@ -1,14 +1,15 @@
-# GraphMarks Shared — informe de cobros
+# Graphacker Shared — informe de cobros
 
-**Estado:** decisión de enfoque. No implica integración iniciada.
+**Estado:** la decisión de Stripe directo continúa vigente. La infraestructura Supabase ha sido reemplazada por
+[`arquitectura-cloud-sync.md`](./arquitectura-cloud-sync.md). No implica integración iniciada.
 
 ## Decisión resumida
 
-Para cobrar por GraphMarks Shared se usará, de momento, **Stripe directo** con
+Para cobrar por Graphacker Shared se usará, de momento, **Stripe directo** con
 checkout alojado y suscripciones. No se construirá un marketplace, no habrá
 pagos a curadores ni Stripe Connect.
 
-El producto que se vende es una suscripción de GraphMarks al propietario de un
+El producto que se vende es una suscripción de Graphacker al propietario de un
 workspace colaborativo. Ese propietario puede invitar a lectores o editores sin
 que los invitados tengan que pagar.
 
@@ -59,7 +60,7 @@ No se administrará una VM, Docker, procesos, WebSockets ni infraestructura de
 pagos. Se usarán servicios gestionados:
 
 ```text
-GraphMarks
+Graphacker
    │
    ├── Supabase
    │    ├── Auth anónimo
@@ -148,14 +149,14 @@ Edge Functions.
 - Payouts, saldos de terceros, comisiones de plataforma o gestión de disputas
   de vendedores.
 
-Si algún día GraphMarks vende contenido de terceros, será una decisión de
+Si algún día Graphacker vende contenido de terceros, será una decisión de
 producto y negocio separada. Stripe Connect está pensado para ese tipo de
 marketplace, pero añade onboarding de vendedores, pagos a terceros, riesgos y
 responsabilidades que no son necesarias ahora.
 
 ## Impuestos: límite de la simplificación
 
-Con Stripe directo, GraphMarks es quien vende el servicio. Stripe procesa el
+Con Stripe directo, Graphacker es quien vende el servicio. Stripe procesa el
 cobro, pero no sustituye la gestión fiscal propia.
 
 - Stripe Tax puede calcular y recaudar impuestos.

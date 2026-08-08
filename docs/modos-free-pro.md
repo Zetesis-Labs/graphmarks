@@ -1,16 +1,17 @@
-# GraphMarks — definición inicial de Free y Pro
+# Graphacker — definición inicial de Free y Pro
 
-**Estado:** decisión de producto actual. Teams queda fuera de alcance.
+**Estado:** decisión de producto. La arquitectura Supabase descrita aquí ha sido reemplazada por
+[`arquitectura-cloud-sync.md`](./arquitectura-cloud-sync.md). Teams queda fuera de alcance.
 
 ## Principio de segmentación
 
-GraphMarks no limita la organización personal ni convierte las funciones ya
+Graphacker no limita la organización personal ni convierte las funciones ya
 existentes en un peaje. La distinción es natural:
 
 > Lo personal y lo público es Free; la privacidad y colaboración de un espacio
 > compartido son Pro.
 
-## GraphMarks Free
+## Graphacker Free
 
 Free incluye el producto personal completo:
 
@@ -34,7 +35,7 @@ Free no sincroniza automáticamente los marcadores privados con colecciones
 compartidas. La privacidad se mantiene por defecto: solo se publica aquello que
 el usuario selecciona conscientemente.
 
-## GraphMarks Pro / Shared
+## Graphacker Pro / Shared
 
 Pro habilita un workspace privado y colaborativo. La suscripción pertenece al
 owner del workspace; sus invitados no necesitan pagar.
@@ -81,14 +82,14 @@ No pertenecen ni a Free ni a Pro por ahora:
 ## Posicionamiento resumido
 
 ```text
-GraphMarks Free
+Graphacker Free
   Tu mapa privado y colecciones públicas para descubrir recursos.
 
-GraphMarks Pro / Shared
+Graphacker Pro / Shared
   Espacios privados donde un grupo mantiene recursos juntos.
 ```
 
 ## Informes relacionados
 
 - [Compartir colecciones: producto y arquitectura](./compartir-colecciones.md)
-- [Cobros de GraphMarks Shared](./cobros-shared.md)
+- [Cobros de Graphacker Shared](./cobros-shared.md)

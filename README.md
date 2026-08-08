@@ -1,4 +1,4 @@
-# GraphMarks — Marcadores en grafo
+# Graphacker — Marcadores en grafo
 
 Extensión de Chrome (Manifest V3, TypeScript) que reemplaza la página de nueva
 pestaña por un grafo interactivo de tus marcadores, al estilo del *graph view*
@@ -26,7 +26,7 @@ pnpm build      # genera dist/newtab.js y dist/background.js
 
 1. Abre `chrome://extensions`
 2. Activa **Modo de desarrollador** (esquina superior derecha)
-3. **Cargar descomprimida** → selecciona esta carpeta (`graphmarks`)
+3. **Cargar descomprimida** → selecciona esta carpeta (`graphacker`)
 4. Abre una pestaña nueva. Chrome preguntará si quieres conservar la nueva
    página de pestaña — acepta.
 
@@ -130,7 +130,7 @@ ventanas tal cual estaban. Las sesiones entran en el export/import JSON.
 
 Nota honesta: Chrome todavía no ofrece API estable a extensiones para
 *recrear* las pestañas divididas (split view); si algún día expone el campo,
-GraphMarks ya lo captura al guardar.
+Graphacker ya lo captura al guardar.
 
 ## Historial como capa viva
 
@@ -177,7 +177,7 @@ El conmutador de la cabecera cambia la topología del grafo:
   por dominio o por sesión y conectadas por las transiciones reales que expone
   Chrome.
 
-Las etiquetas son una capa propia de GraphMarks (Chrome no las soporta):
+Las etiquetas son una capa propia de Graphacker (Chrome no las soporta):
 se guardan con la URL como clave — sobreviven a renombrados y movimientos de
 carpeta — en `chrome.storage.sync`, troceadas en buckets para respetar el
 límite de 8 KB por item, así que **viajan entre tus máquinas** con la sesión

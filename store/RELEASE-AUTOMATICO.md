@@ -54,10 +54,10 @@ publicada y no revoques el acceso).
 ## 3. Guardar los secretos en GitHub
 
 ```bash
-gh secret set CWS_CLIENT_ID     --repo Zetesis-Labs/graphmarks
-gh secret set CWS_CLIENT_SECRET --repo Zetesis-Labs/graphmarks
-gh secret set CWS_REFRESH_TOKEN --repo Zetesis-Labs/graphmarks
-gh secret set CWS_EXTENSION_ID  --repo Zetesis-Labs/graphmarks   # el ID de la URL del dashboard
+gh secret set CWS_CLIENT_ID     --repo Zetesis-Labs/graphacker
+gh secret set CWS_CLIENT_SECRET --repo Zetesis-Labs/graphacker
+gh secret set CWS_REFRESH_TOKEN --repo Zetesis-Labs/graphacker
+gh secret set CWS_EXTENSION_ID  --repo Zetesis-Labs/graphacker   # el ID de la URL del dashboard
 ```
 
 ## 4. Publicar

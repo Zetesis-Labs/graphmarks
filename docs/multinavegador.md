@@ -1,17 +1,17 @@
-# GraphMarks multinavegador — informe de decisiones
+# Graphacker multinavegador — informe de decisiones
 
 **Estado:** capa de datos implementada (`src/browser-port.ts`); eventos,
-permisos y runtime siguen en la cáscara de cada módulo.
+permisos y runtime siguen en la cáscara de cada módulo. La decisión de producto
+se amplía con una edición Safari de pago basada en colecciones cloud.
 
 ## Decisión resumida
 
 - **Chrome** es y sigue siendo la plataforma nativa completa.
 - **Firefox** ya funciona vía `firefox/` con degradación en cadena; no
   necesita más abstracción para existir.
-- **Safari no es alcanzable como extensión equivalente**: no soporta las tres
-  APIs sobre las que se sostiene el producto. El camino a Safari, si algún día
-  es estratégico, es de **producto** (almacén de marcadores propio =
-  colecciones), no de infraestructura.
+- **Safari será una edición de pago y un producto distinto**, apoyado en un
+  almacén de marcadores propio: las colecciones cloud. No se promete una
+  extensión equivalente a Chrome donde las APIs nativas no lo permitan.
 - La capa de puertos `BrowserPorts` se hará igualmente como inversión de
   calidad — demo por sustitución de adaptador, tests sin navegador,
   diferencias de Firefox en un solo sitio — pero **no se vende como camino a
@@ -84,23 +84,24 @@ Beneficios que la pagan sola, sin hablar de Safari:
 
 Coste estimado: una sesión de trabajo — el refactor ya dejó la cáscara fina.
 
-## Safari: decisión de producto, no de infra
+## Safari de pago: decisión de producto, no simple port
 
-GraphMarks-en-Safari sería otra cosa: una página o popup con **almacén de
-marcadores propio**, donde los del navegador serían a lo sumo una
-importación. Ese almacén ya está diseñado en este repo: **las colecciones**
-(ver [compartir-colecciones.md](./compartir-colecciones.md)).
+Graphacker para Safari será una página o popup con **almacén de marcadores
+propio**, donde los del navegador serán una importación cuando las APIs
+disponibles lo permitan. Ese almacén son las **colecciones cloud** descritas en
+[arquitectura-cloud-sync.md](./arquitectura-cloud-sync.md).
 
-Si Safari se vuelve estratégico, el orden es: validar colecciones → elevar el
-puerto al nivel del dominio (los marcadores del navegador como *una fuente
-más* junto a las colecciones) → empaquetar la vista sobre esa capa. Nada de
-eso empieza por abstraer `chrome.*`.
+El orden es: validar RxDB y la sincronización cloud → elevar el puerto al nivel
+del dominio (los marcadores del navegador como *una fuente más* junto a las
+colecciones) → validar OIDC, IndexedDB y ciclo de vida en Safari → empaquetar y
+distribuir la edición de pago. Nada de eso empieza por fingir que `chrome.*`
+está disponible.
 
 ## Orden recomendado
 
 1. `BrowserPorts` como siguiente tanda de calidad, sin urgencia — no bloquea
    ninguna feature.
-2. Nada específico de Safari hasta que las colecciones estén validadas.
+2. Spike de Safari después de validar las colecciones cloud; no antes.
 
 ## Fuentes
 

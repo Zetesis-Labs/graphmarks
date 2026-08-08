@@ -1,10 +1,11 @@
-# GraphMarks Sharing — informe de decisiones
+# Graphacker Sharing — informe de decisiones
 
-**Estado:** exploración de producto y arquitectura. No implica trabajo iniciado.
+**Estado:** reemplazado en su arquitectura por
+[`arquitectura-cloud-sync.md`](./arquitectura-cloud-sync.md). Se conserva como histórico de la exploración de producto.
 
 ## Decisión resumida
 
-GraphMarks puede evolucionar de un mapa privado de marcadores a una herramienta para **publicar, seguir y editar colecciones de enlaces con otras personas**.
+Graphacker puede evolucionar de un mapa privado de marcadores a una herramienta para **publicar, seguir y editar colecciones de enlaces con otras personas**.
 
 La primera implementación colaborativa debería usar **solo Supabase**:
 
@@ -35,7 +36,7 @@ Esto abre dos modos complementarios:
 | Seguir | Recibir novedades de una colección curada | Solo lectura |
 | Colaborar | Mantener una colección entre varias personas | Edición |
 
-El valor no está en cobrar por más colores, filtros o vistas del grafo. Está en que GraphMarks se convierta en un sitio donde descubrir, organizar y mantener recursos compartidos. Antes de diseñar un plan Pro, hay que validar que el círculo «crear → invitar/seguir → guardar o editar → volver» genera uso recurrente.
+El valor no está en cobrar por más colores, filtros o vistas del grafo. Está en que Graphacker se convierta en un sitio donde descubrir, organizar y mantener recursos compartidos. Antes de diseñar un plan Pro, hay que validar que el círculo «crear → invitar/seguir → guardar o editar → volver» genera uso recurrente.
 
 ## Principios de producto
 
@@ -48,8 +49,8 @@ El valor no está en cobrar por más colores, filtros o vistas del grafo. Está 
 
 ## Funcionalidad gratuita pendiente: onboarding
 
-GraphMarks necesita un onboarding breve en el primer uso. Es una mejora gratuita
-prioritaria e independiente de GraphMarks Sharing: el producto ya tiene muchas
+Graphacker necesita un onboarding breve en el primer uso. Es una mejora gratuita
+prioritaria e independiente de Graphacker Sharing: el producto ya tiene muchas
 funciones, pero una persona nueva no descubre por sí sola el mapa, la búsqueda,
 las vistas, las sesiones ni qué datos permanecen locales.
 
@@ -103,7 +104,7 @@ Marcadores privados de Chrome
              │
              │ snapshot inicial / importación explícita
              ▼
-     Colección colaborativa en GraphMarks
+     Colección colaborativa en Graphacker
              │
              ├── Supabase Auth: identidad anónima
              ├── Postgres + RLS: datos, roles, invitaciones
@@ -152,7 +153,7 @@ Si más adelante hay notas largas que varias personas editan al mismo tiempo, se
 
 ### Identidad e invitaciones
 
-En la primera interacción relacionada con compartir, GraphMarks llama a `signInAnonymously()` y persiste la sesión dentro del almacenamiento de la extensión. El usuario no ve una cuenta.
+En la primera interacción relacionada con compartir, Graphacker llama a `signInAnonymously()` y persiste la sesión dentro del almacenamiento de la extensión. El usuario no ve una cuenta.
 
 El enlace de invitación incluye un token aleatorio. Al abrirlo, la extensión llama a una Edge Function o RPC de Supabase que:
 
@@ -215,7 +216,7 @@ No se requiere una segunda plataforma de tiempo real ni un servidor propio. Una 
 
 ## Impacto en privacidad y comunicación
 
-GraphMarks declara actualmente que no hace peticiones de red y que todos los datos viven en el navegador. La función de compartir cambia esa afirmación.
+Graphacker declara actualmente que no hace peticiones de red y que todos los datos viven en el navegador. La función de compartir cambia esa afirmación.
 
 Antes de publicarla hay que actualizar:
 
@@ -225,14 +226,14 @@ Antes de publicarla hay que actualizar:
 
 La promesa nueva debe ser precisa:
 
-> Los marcadores, pestañas e historial siguen siendo locales. Solo se envía a GraphMarks Sharing el contenido de las colecciones que decides publicar o a las que te unes.
+> Los marcadores, pestañas e historial siguen siendo locales. Solo se envía a Graphacker Sharing el contenido de las colecciones que decides publicar o a las que te unes.
 
 ## Orden de implementación recomendado
 
 1. Crear proyecto Supabase, tablas, índices y políticas RLS.
 2. Añadir cliente Supabase y sesión anónima aislados en un módulo propio.
 3. Implementar crear colección, listar las propias y añadir items.
-4. Dibujar la colección compartida en GraphMarks sin tocar marcadores privados.
+4. Dibujar la colección compartida en Graphacker sin tocar marcadores privados.
 5. Activar Realtime para altas, cambios y borrados de items.
 6. Implementar invitaciones con una Edge Function o RPC segura.
 7. Añadir roles viewer/editor/owner y revocación de accesos.

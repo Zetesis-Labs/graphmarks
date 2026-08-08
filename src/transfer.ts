@@ -11,7 +11,7 @@ import { toast } from './ui/toast'
 /** Exporta etiquetas, layout fijado y sesiones como JSON descargable. */
 export function exportData(): void {
   const data: ExportPayload = {
-    app: 'graphmarks',
+    app: 'graphacker',
     version: 1,
     exported: new Date().toISOString(),
     tags: S.tagsMap,
@@ -25,7 +25,7 @@ export function exportData(): void {
   const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
-  a.download = `graphmarks-${new Date().toISOString().slice(0, 10)}.json`
+  a.download = `graphacker-${new Date().toISOString().slice(0, 10)}.json`
   a.click()
   URL.revokeObjectURL(a.href)
 }

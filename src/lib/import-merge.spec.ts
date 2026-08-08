@@ -10,18 +10,22 @@ const current = {
 }
 
 describe('parseImportPayload', () => {
-  it('acepta solo exportaciones de graphmarks', () => {
-    expect(parseImportPayload({ app: 'graphmarks', version: 1 })).not.toBeNull()
+  it('acepta solo exportaciones de graphacker', () => {
+    expect(parseImportPayload({ app: 'graphacker', version: 1 })).not.toBeNull()
     expect(parseImportPayload({ app: 'otra', version: 1 })).toBeNull()
     expect(parseImportPayload('texto')).toBeNull()
     expect(parseImportPayload(null)).toBeNull()
+  })
+
+  it('sigue aceptando las exportaciones previas al renombrado', () => {
+    expect(parseImportPayload({ app: 'graphmarks', version: 1 })).not.toBeNull()
   })
 })
 
 describe('mergeImport', () => {
   it('las etiquetas mezclan y lo importado gana clave a clave', () => {
     const patch = mergeImport(current, {
-      app: 'graphmarks',
+      app: 'graphacker',
       version: 1,
       exported: '',
       tags: { 'https://a.com': ['infra'], 'https://c.com': ['nuevo'] }
@@ -35,7 +39,7 @@ describe('mergeImport', () => {
 
   it('las sesiones se añaden deduplicadas por id', () => {
     const patch = mergeImport(current, {
-      app: 'graphmarks',
+      app: 'graphacker',
       version: 1,
       exported: '',
       sessions: [session('s1'), session('s2')]
@@ -44,13 +48,13 @@ describe('mergeImport', () => {
   })
 
   it('solo devuelve las piezas presentes en el payload', () => {
-    const patch = mergeImport(current, { app: 'graphmarks', version: 1, exported: '' })
+    const patch = mergeImport(current, { app: 'graphacker', version: 1, exported: '' })
     expect(patch).toEqual({})
   })
 
   it('el rango y los silenciados reemplazan en vez de mezclar', () => {
     const patch = mergeImport(current, {
-      app: 'graphmarks',
+      app: 'graphacker',
       version: 1,
       exported: '',
       historyRange: { preset: '7d' },
