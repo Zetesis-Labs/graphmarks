@@ -98,6 +98,15 @@ Cuatro cosas que conviene saber:
   que `main.ts` cablea en el arranque.
 - El estado vive en `state.ts` (`S`), no en singletons repartidos por archivo.
 
+## Graphacker Cloud
+
+**La decisión técnica vigente está en `docs/arquitectura-cloud-sync.md`.** La dirección aprobada es Zetesis-Auth +
+Graphacker Server (Hono/Bun) + PostgreSQL + RxDB. Yjs y Hocuspocus quedan como evolución futura, no como parte del MVP.
+
+El producto gratuito continúa usando los marcadores nativos y la sincronización del navegador. Las cuentas sirven para
+suscripciones y colecciones cloud. Safari será una edición de pago apoyada en esas colecciones cloud; no se presupone
+paridad con las APIs nativas de Chrome.
+
 ## Convenciones
 
 - **TypeScript estricto** — `strict`, `noUncheckedIndexedAccess`,
