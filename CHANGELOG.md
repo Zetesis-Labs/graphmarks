@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.0](https://github.com/Zetesis-Labs/graphacker/compare/v0.8.0...v0.9.0) (2026-08-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* las exportaciones nuevas se marcan con app: 'graphacker', que una versión anterior de la extensión no reconoce al importar.
+
+### Features
+
+* renombrar el producto a Graphacker ([05996be](https://github.com/Zetesis-Labs/graphacker/commit/05996be71c0487c57747e6e363dbadbdc161b00a))
+
 ## [0.8.0](https://github.com/Zetesis-Labs/graphmarks/compare/v0.7.0...v0.8.0) (2026-08-06)
 
 
